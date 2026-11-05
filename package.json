@@ -1,0 +1,40 @@
+{
+  "name": "devquest",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "preview": "vite preview",
+    "validate": "bash scripts/validate-all.sh",
+    "validate:one": "node scripts/validate-content.ts"
+  },
+  "dependencies": {
+    "@codemirror/lang-javascript": "^6.2.5",
+    "@codemirror/lang-sql": "^6.10.0",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/theme-one-dark": "^6.1.3",
+    "@codemirror/view": "^6.43.15",
+    "@electric-sql/pglite": "^0.5.15",
+    "@fontsource-variable/inter": "^5.3.0",
+    "@fontsource/pixelify-sans": "^5.3.0",
+    "codemirror": "^6.0.2",
+    "highlight.js": "^11.12.0",
+    "marked": "^18.1.3",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "sucrase": "^3.35.1"
+  },
+  "devDependencies": {
+    "@types/jsdom": "^30.0.0",
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.2.1",
+    "jsdom": "^31.0.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.6"
+  }
+}

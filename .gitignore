@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Logs & caches
+npm-debug.log*
+.vite/
+.cache/
+coverage/
+
+# Env files (never commit secrets)
+.env
+.env.*
+!.env.example
+
+# Editors / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local Claude/agent scratch
+.claude/settings.local.json
