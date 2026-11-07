@@ -62,7 +62,15 @@ export function preloadPostgres() { getDb().catch(() => { dbPromise = null }) }
 async function resetDb(seed: string, setup: string) {
   const db = await getDb()
   try { await db.exec('ROLLBACK') } catch { /* no tx */ }
-  await db.exec(`RESET ALL; DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public; SET search_path TO public;`)
+  // session-level leftovers: temp objects (pg_temp functions/tables), prepared statements, SET ROLE,
+  // settings, advisory locks, LISTEN — DISCARD ALL clears all of them (must run outside a transaction)
+  try { await db.exec('DISCARD ALL') } catch { /* ignore */ }
+  await db.exec(`RESET ALL; DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public AUTHORIZATION pg_database_owner; GRANT USAGE ON SCHEMA public TO PUBLIC; SET search_path TO "$user", public;`)
+  // roles are cluster-wide and survive the schema drop
+  const roles = await db.query(`SELECT rolname FROM pg_roles WHERE rolname NOT LIKE 'pg\\_%' AND rolname <> current_user`)
+  for (const r of roles.rows as { rolname: string }[]) {
+    try { await db.exec(`DROP OWNED BY "${r.rolname}" CASCADE; DROP ROLE IF EXISTS "${r.rolname}"`) } catch { /* ignore */ }
+  }
   // drop any extra schemas the learner created
   const extra = await db.query(`SELECT nspname FROM pg_namespace WHERE nspname NOT IN ('public','information_schema') AND nspname NOT LIKE 'pg_%'`)
   for (const r of extra.rows as { nspname: string }[]) await db.exec(`DROP SCHEMA IF EXISTS "${r.nspname}" CASCADE`)

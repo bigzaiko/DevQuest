@@ -25,6 +25,9 @@ export function Challenge({ b }: { b: ChallengeBlock }) {
   const fails = verdict && !verdict.pass ? 1 : 0
   const codeRef = useRef(code)
   codeRef.current = code
+  // every React run gets a FRESH sandbox iframe, so an unfinished act()/timer from a previous run can't leak
+  const usedRef = useRef(false)
+  const readyWaiter = useRef<(() => void) | null>(null)
 
   useEffect(() => {
     if (!b.react) return
@@ -32,6 +35,8 @@ export function Challenge({ b }: { b: ChallengeBlock }) {
       if (e.source !== frame.current?.contentWindow || e.data?.source !== 'devquest-sandbox') return
       if (e.data.type === 'ready') {
         setFrameReady(true)
+        readyWaiter.current?.()
+        readyWaiter.current = null
         if (b.preview && b.mode === 'code') frame.current?.contentWindow?.postMessage({ source: 'devquest-host', type: 'preview', code: (b.setup ? b.setup + '\n' : '') + codeRef.current, preview: b.preview }, '*')
       }
       if (e.data.type === 'height') setFrameH(Math.min(520, Math.max(80, e.data.height)))
@@ -47,8 +52,15 @@ export function Challenge({ b }: { b: ChallengeBlock }) {
     let v: Verdict
     if (b.react) {
       if (!frame.current || !frameReady) { setRunning(false); return }
+      if (usedRef.current) {
+        const ready = new Promise<void>((resolve) => { readyWaiter.current = resolve; setTimeout(resolve, 15000) })
+        setFrameKey((k) => k + 1)
+        await ready
+      }
+      usedRef.current = true
+      if (!frame.current) { setRunning(false); return }
       v = await runInFrame(frame.current, b, normalizeQuotes(code))
-      if (v.error?.startsWith('Timed out')) { setFrameReady(false); setFrameKey((k) => k + 1) }
+      if (v.error?.startsWith('Timed out')) { setFrameReady(false); usedRef.current = false; setFrameKey((k) => k + 1) }
     } else {
       v = await runInWorker(b, normalizeQuotes(code))
     }
@@ -87,7 +99,7 @@ export function Challenge({ b }: { b: ChallengeBlock }) {
         <CodeEditor value={code} lang={b.lang} onChange={(v) => { setCode(v); setDraft(b.id, v) }} onRun={run} label={`Editor for ${b.title}`} />
       </div>
       <div className="ex-actions">
-        <button className="btn btn-primary" onClick={run} disabled={running || (b.react && !frameReady)} type="button">
+        <button className="btn btn-primary" onClick={run} disabled={running || (b.react && !frameReady && !usedRef.current)} type="button">
           {running ? <><span className="spinner" /> Running…</> : b.react && !frameReady ? 'Loading sandbox…' : '▶ Run tests'}
         </button>
         <span className="ex-note kbd-hint"><kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>Enter</kbd></span>

@@ -5,11 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && vite build --config vite.sandbox.config.ts",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
     "validate": "bash scripts/validate-all.sh",
-    "validate:one": "node scripts/validate-content.ts"
+    "validate:one": "node scripts/validate-content.ts",
+    "selftest": "node scripts/selftest.ts"
   },
   "dependencies": {
     "@codemirror/lang-javascript": "^6.2.5",
@@ -34,6 +35,7 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.2.1",
     "jsdom": "^31.0.0",
+    "playwright-core": "^1.65.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.6"
   }

@@ -20,11 +20,13 @@ npm run dev        # http://localhost:5173
 npm run validate   # every region in its own process: parse lessons + run every challenge solution against its tests (REQUIRED before commit)
 npm run validate:one -- frontend/0 ops/   # only matching paths
 npm run typecheck
+npm run build && npm run selftest   # production build in a real browser: every lesson renders, every challenge runs (CHROMIUM_PATH=/usr/bin/chromium locally)
 npm run build      # → dist/
 npm run preview
 ```
 
-CI (`.github/workflows/deploy.yml`) runs validate → typecheck → build → deploy on push to `main`.
+CI (`.github/workflows/deploy.yml`) runs validate → typecheck → build → browser self-test → deploy on push to `main`.
+The React challenge sandbox is built separately with React's development build (`vite.sandbox.config.ts`) because tests use `act()`; every React run gets a fresh sandbox iframe.
 A failing validation blocks the deploy.
 
 ## Layout

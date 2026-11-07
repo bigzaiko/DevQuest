@@ -24,6 +24,7 @@ Nothing open. All regions are written, reviewed, fixed and validated.
 - Every lesson: writer → independent reviewer (fixes in place) → blind quiz verifier → fixer.
 - Every region: coherence critic (progression, gaps, contradictions) → fixer → independent audit.
 - `npm run validate` runs every challenge solution against its tests (starter must fail) and every SQL solution on PostgreSQL 18 (PGlite); CI blocks the deploy on failure.
+- `npm run selftest` runs the production build in Chromium: all 150 lessons render without errors and all 475 code/SQL challenges pass through the real browser runners (CI gate).
 - Many labs were built and run for real: .NET 10 labs (incl. Testcontainers + postgres:18), the whole Capstone app rebuilt from lessons 01–11 (all tests green, container images built), Redis/Postgres labs against real containers.
 
 ## Known limitations (by design)

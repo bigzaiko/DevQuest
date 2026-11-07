@@ -52,7 +52,21 @@ export function loadLesson(id: string): Promise<ParsedLesson> {
   if (!p) {
     const path = PATH_BY_ID.get(id)
     if (!path) return Promise.reject(new Error(`Unknown lesson ${id}`))
-    p = bodies[path]().then(parseLesson)
+    const load = bodies[path]
+    p = load()
+      .catch(() => new Promise<string>((r) => setTimeout(r, 400)).then(() => load())) // one retry (flaky network)
+      .then(parseLesson)
+      .catch((e) => {
+        parsed.delete(id)
+        // a missing chunk after a redeploy → reload once to get the new build
+        if (/dynamically imported module|Failed to fetch|Importing a module script failed/i.test(String(e?.message ?? e))) {
+          try {
+            const last = Number(sessionStorage.getItem('devquest:reloaded') || 0)
+            if (Date.now() - last > 30_000) { sessionStorage.setItem('devquest:reloaded', String(Date.now())); location.reload() }
+          } catch { location.reload() }
+        }
+        throw e
+      })
     parsed.set(id, p)
   }
   return p

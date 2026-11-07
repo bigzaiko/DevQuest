@@ -18,18 +18,18 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
 
       - run: npm ci
 
-      # Every challenge's solution is executed against its tests — broken content never ships.
+      # Every challenge's solution is executed against its tests (and every starter must fail).
       - name: Validate lessons
         run: npm run validate
 
@@ -39,16 +39,24 @@ jobs:
       - name: Build
         run: npm run build
 
-      - uses: actions/upload-pages-artifact@v3
+      # The production build in a real browser: every lesson renders, every challenge runs
+      # through the real Web Worker / React sandbox / PGlite runners.
+      - name: Install Chromium for the browser self-test
+        run: npx playwright-core install --with-deps chromium
+
+      - name: Browser self-test (production build)
+        run: npm run selftest
+
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: dist
 
   deploy:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

@@ -42,7 +42,7 @@ export default defineConfig({
     target: 'es2022',
     chunkSizeWarningLimit: 1500,
     rollupOptions: {
-      input: { main: 'index.html', sandbox: 'sandbox.html' },
+      input: { main: 'index.html' },  // sandbox.html is built separately (vite.sandbox.config.ts)
     },
   },
 })
