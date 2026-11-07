@@ -2,7 +2,7 @@
 id: be-05
 title: The .NET CLI, Solutions & Projects
 level: beginner
-minutes: 45
+minutes: 50
 xp: 120
 summary: The SDK and the dotnet CLI, .slnx solutions, .csproj anatomy, NuGet packages, project references, Directory.Build.props, global.json and user-secrets — then build an Api + Domain + Tests solution.
 ---

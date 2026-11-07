@@ -2,7 +2,7 @@
 id: db-02
 title: SELECT, WHERE & ORDER BY
 level: beginner
-minutes: 30
+minutes: 65
 xp: 120
 summary: Read exactly the rows and columns you need — filtering, pattern matching, NULL checks, sorting, paging and DISTINCT.
 ---
@@ -78,7 +78,7 @@ WHERE price BETWEEN 20 AND 50          -- inclusive: 20 <= price AND price <= 50
 
 `IN` is shorter and safer than a chain of `OR`s — there's no precedence to get wrong. One trap to
 remember for later: if the list given to `NOT IN` contains a NULL, it matches *no rows at all*
-(lesson 3 explains why).
+(the **Expressions, Functions & NULL** lesson explains why).
 
 :::warn title="BETWEEN and timestamps"
 `BETWEEN` includes both ends. For times that's usually wrong:
@@ -400,7 +400,7 @@ SELECT name, price * 1.19 AS gross FROM products WHERE gross > 50;
 `WHERE` runs (step 2) before `SELECT` creates the alias (step 5). Repeat the expression in
 `WHERE` instead. But `ORDER BY gross` **does** work, because `ORDER BY` runs after `SELECT`.
 (`HAVING` runs before `SELECT` too, so it can't see aliases either. `GROUP BY` is the one
-exception: Postgres lets it use an output alias as a convenience — lesson 4 explains.)
+exception: Postgres lets it use an output alias as a convenience — the **Aggregates & GROUP BY** lesson explains.)
 
 One Postgres quirk: `ORDER BY` accepts an alias only **on its own**. `ORDER BY gross DESC` works,
 but `ORDER BY gross + 1` fails with the same "does not exist" error, because inside an expression

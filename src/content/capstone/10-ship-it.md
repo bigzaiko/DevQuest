@@ -2,7 +2,7 @@
 id: cap-10
 title: Ship It — Containers, Kubernetes and Launch
 level: expert
-minutes: 450
+minutes: 360
 xp: 300
 summary: Multi-stage images, the whole stack in one compose file, a kind cluster deployed with kustomize (probes, Traefik, secrets, backups), observability, a hardened edge, SHA-tagged continuous delivery with a rehearsed rollback, a k6 load test with an incident drill, and a launch checklist.
 ---
@@ -270,8 +270,8 @@ USER $APP_UID
 ENTRYPOINT ["dotnet", "BranchStory.Worker.dll"]
 ```
 
-(The worker references `BranchStory.ServiceDefaults` from Lab 3. Until then, delete the two
-ServiceDefaults `COPY` lines, or do Lab 3 first.)
+(Both services reference `BranchStory.ServiceDefaults`, which Lab 3 creates. Until then, delete
+the ServiceDefaults `COPY` lines, one in `api/Dockerfile` and two here, or do Lab 3 first.)
 
 **4. `deploy/nginx/default.conf`**: SPA fallback, long-cached assets, API and WebSocket proxy
 
@@ -336,7 +336,7 @@ RUN --mount=type=cache,target=/root/.npm npm ci
 COPY web/ ./
 RUN npm run build
 
-FROM nginxinc/nginx-unprivileged:stable-alpine AS runtime
+FROM docker.io/nginxinc/nginx-unprivileged:stable-alpine AS runtime
 COPY deploy/nginx/default.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 8080
@@ -461,7 +461,7 @@ services:
 
   # docker compose --profile observability up -d   (then open http://localhost:3000)
   lgtm:
-    image: grafana/otel-lgtm:latest
+    image: docker.io/grafana/otel-lgtm:latest
     profiles: [observability]
     ports: ["127.0.0.1:3000:3000", "127.0.0.1:4317:4317", "127.0.0.1:4318:4318"]
 
@@ -490,6 +490,11 @@ Each part of the file has a job:
 * **`x-dotnet-env: &dotnet-env`** is a YAML anchor. Compose ignores top-level keys that start
   with `x-`, and `<<: *dotnet-env` pastes the block into each service, so api and worker can't drift
   apart.
+* **nginx looks up `api` once, when it starts.** Whenever Compose *recreates* the api container
+  (new image, changed environment) it usually gets a new IP address, and nginx keeps sending
+  requests to the old one: every `/api` call becomes a `502`/`504`. After any `up` that recreates
+  `api` without `web`, run `docker compose -f deploy/compose.yaml restart web`. In Kubernetes the
+  Service address never changes, so this is a Compose-only trap.
 * **Healthchecks only report.** In plain Docker Compose, an `unhealthy` container is **not**
   restarted (`restart:` only reacts to the process exiting). Health status gates `depends_on` and
   shows up in `ps`. That is why stopping the database below leaves the API running and unhealthy,
@@ -650,8 +655,11 @@ using var activity = WorkerTelemetry.Source.StartActivity($"job {job.Kind}");
 activity?.SetTag("job.id", job.Id);
 activity?.SetTag("job.attempt", job.Attempts);
 
-// in each branch, next to the existing log line:
-telemetry.Record(job.Kind, "succeeded", TimeProvider.System.GetElapsedTime(started));   // success
+// success: right after `var summary = await handler.HandleAsync(...)`. Not next to the log line:
+// that one sits in a brace-less if/else, and a second statement there breaks the else.
+telemetry.Record(job.Kind, "succeeded", TimeProvider.System.GetElapsedTime(started));
+
+// in each other branch, next to the existing log line:
 telemetry.Record(job.Kind, "released",  TimeProvider.System.GetElapsedTime(started));   // shutdown
 telemetry.Record(job.Kind, "failed",    TimeProvider.System.GetElapsedTime(started));   // PermanentJobException / last attempt
 telemetry.Record(job.Kind, "retry",     TimeProvider.System.GetElapsedTime(started));   // retry branch
@@ -675,8 +683,13 @@ mapping a second set.
 
 ```bash
 OTEL_EXPORTER_OTLP_ENDPOINT=http://lgtm:4317 docker compose -f deploy/compose.yaml --profile observability up -d --build
-docker compose -f deploy/compose.yaml logs worker --no-log-prefix | jq -c 'select(.Category == "BranchStory.Worker.Jobs.JobRunner") | {LogLevel, Message, Scopes}'
+docker compose -f deploy/compose.yaml restart web    # the api was recreated: let nginx look up its new address
+docker compose -f deploy/compose.yaml logs worker --no-log-prefix | jq -cR 'fromjson? | select(.Category == "BranchStory.Worker.Jobs.JobRunner") | {LogLevel, Message, Scopes}'
 ```
+
+`-R` plus `fromjson?` reads each line as text and skips the ones that aren't JSON: a native library
+can still write a plain line to stderr (for example `Cannot load library libgssapi_krb5.so.2` from
+Npgsql's optional Kerberos probe in the slim `aspnet` image), and plain `jq` stops at the first one.
 
 Publish a few stories, then open Grafana at http://localhost:3000 (admin/admin): **Explore →
 Tempo** shows a `POST /api/projects/{projectId}/publish` trace with its SQL spans and separate
@@ -913,7 +926,8 @@ spec:
         - name: migrate
           image: branchstory/migrator
           imagePullPolicy: IfNotPresent
-          # EF Core 9+ takes a database lock while migrating, so concurrent replicas are safe.
+          # Two pods migrating at the same moment can still collide ("relation … already exists").
+          # The failed init container restarts, finds the migrations applied, and the pod starts.
           args: ["--connection", "$(ConnectionStrings__BranchStory)"]
           env:
             - name: ConnectionStrings__BranchStory
@@ -983,7 +997,7 @@ spec:
             - name: ConnectionStrings__BranchStory
               valueFrom: { secretKeyRef: { name: branchstory-secrets, key: ConnectionStrings__BranchStory } }
             - name: Worker__WorkerId
-              valueFrom: { fieldRef: { fieldPath: metadata.name } }   # pod name shows up in locked_by
+              valueFrom: { fieldRef: { fieldPath: metadata.name } }   # pod name shows up in leased_by
           livenessProbe:
             httpGet: { path: /health/live, port: http }
             initialDelaySeconds: 10
@@ -1725,7 +1739,7 @@ jobs:
           helm repo add traefik https://traefik.github.io/charts
           helm upgrade --install traefik traefik/traefik -n traefik --create-namespace \
             --set service.type=NodePort --set ports.web.nodePort=30080 --wait
-      - name: Load this commit's images (private packages: pull with our token, then side-load)
+      - name: "Load this commit's images (private packages: pull with our token, then side-load)"
         run: |
           for name in api migrator worker web; do
             docker pull "$REGISTRY/branchstory-$name:$GITHUB_SHA"
@@ -2029,8 +2043,9 @@ the test. Add `RateLimits__AnonymousPerMinute: ${RATE_LIMIT_ANON_PER_MIN:-60}` t
 ```bash
 RATE_LIMIT_ANON_PER_MIN=1000000 OTEL_EXPORTER_OTLP_ENDPOINT=http://lgtm:4317 \
   docker compose -f deploy/compose.yaml --profile observability up -d --build
-docker run --rm -i --network host grafana/k6 run - < tests/load/smoke.js      # Linux
-# macOS/Windows: docker run --rm -i -e BASE_URL=http://host.docker.internal:8080 grafana/k6 run - < tests/load/smoke.js
+docker compose -f deploy/compose.yaml restart web    # nginx looks up the recreated api's address again
+docker run --rm -i --network host docker.io/grafana/k6 run - < tests/load/smoke.js      # Linux
+# macOS/Windows: docker run --rm -i -e BASE_URL=http://host.docker.internal:8080 docker.io/grafana/k6 run - < tests/load/smoke.js
 ```
 
 Read the summary: the `http_req_duration` lines per scenario and a ✓ or ✗ next to each
@@ -2073,7 +2088,7 @@ The planted fix, in a branch with a reasonable-sounding PR description, changes 
 .Where(s => s.Slug.ToLower() == slug.ToLower())
 ```
 
-Deploy it (`docker compose … up -d --build api`) and run k6 again.
+Deploy it (`docker compose … up -d --build api`, then `docker compose … restart web`) and run k6 again.
 
 *The hunt*, using only what on-call has:
 
@@ -2093,6 +2108,14 @@ Deploy it (`docker compose … up -d --build api`) and run k6 again.
    be an expression index (`CREATE INDEX … ON published_stories (lower(slug))`) or a `citext`
    column instead.
 5. **Verify.** Deploy, re-run k6: back to baseline.
+6. **Clean up.** Remove the seed, or every later lab (cap-11's backfill walks *all* projects)
+   has 300 000 extra rows to process. Deleting the projects cascades to `published_stories`:
+
+   ```bash
+   docker compose -f deploy/compose.yaml exec -T db psql -U branchstory -d branchstory \
+     -c "DELETE FROM projects WHERE owner_id = '00000000-0000-7000-8000-000000000001'" \
+     -c "DELETE FROM users WHERE id = '00000000-0000-7000-8000-000000000001'"
+   ```
 
 **5. Write the postmortem**: `docs/postmortems/2026-xx-player-latency.md`. It is **blameless**:
 it describes what the *system* allowed, not who typed what.

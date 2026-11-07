@@ -2,7 +2,7 @@
 id: fe-16
 title: Styling, Design Tokens & Themes
 level: intermediate
-minutes: 50
+minutes: 75
 xp: 170
 summary: Tailwind v4's CSS-first @theme, CSS Modules, design tokens as CSS custom properties, dark/light themes, and composing classes with cn() and variants.
 ---

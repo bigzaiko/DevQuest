@@ -29,9 +29,9 @@ export const TRACKS: Track[] = [
     tagline: 'CI/CD, secrets, security, debugging, teamwork, clean code, system design and interview prep.' },
   { id: 'capstone', prefix: 'cap', title: 'Capstone: BranchStory', realm: "The Dragon's Keep", icon: '🐉', color: '#ff5a2c',
     tagline: 'Build a production-shaped full-stack app end to end: React editor, ASP.NET API, Postgres, real-time, jobs, CI, K8s.' },
-  { id: 'desktop', prefix: 'dsk', title: 'Desktop & Mobile .NET', realm: 'XAML Isles', icon: '🖥️', color: '#9aa4b2', soon: true,
+  { id: 'desktop', prefix: 'dsk', title: 'Desktop & Mobile .NET', realm: 'XAML Isles', icon: '🖥️', color: '#5ad1c8',
     tagline: 'XAML, Avalonia UI and .NET MAUI — MVVM, data binding, styling, cross-platform apps.' },
 ]
 
 /** Recommended route through the regions for a new full-stack job. */
-export const ROUTE = ['basecamp', 'frontend', 'database', 'backend', 'ops', 'cloud', 'pro', 'capstone']
+export const ROUTE = ['basecamp', 'frontend', 'database', 'backend', 'ops', 'cloud', 'pro', 'capstone', 'desktop']

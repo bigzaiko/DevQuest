@@ -2,7 +2,7 @@
 id: fe-25
 title: Frontend Security & Auth
 level: expert
-minutes: 60
+minutes: 100
 xp: 230
 summary: XSS and sanitising, Content Security Policy, OIDC Authorization Code + PKCE with Keycloak/Entra, where tokens belong (memory, cookies, BFF), CSRF, CORS and why VITE_ variables are public.
 ---

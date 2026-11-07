@@ -38,7 +38,9 @@ or refreshing what you already know. Every topic is explained properly (the *why
 | 🧰 **Cloud-Native Toolkit** | Redis (data types, caching, reliable queues, streams, locks), message brokers & the outbox pattern, S3 presigned uploads, KEDA autoscaling, Keycloak identity, OpenTelemetry + Prometheus + Grafana + Loki |
 | 🧭 **Pro Skills** | CI/CD, config & secrets, OWASP security, debugging, teamwork & code review, clean code & patterns, system design, interview prep |
 | 🐉 **Capstone: BranchStory** | build a production-shaped full-stack app end to end: React editor, ASP.NET API, Postgres, real-time co-editing, job worker, tests, CI, Kubernetes |
-| 🖥️ **Desktop & Mobile .NET** | *coming soon*: XAML, Avalonia, .NET MAUI |
+| 🖥️ **Desktop & Mobile .NET** | XAML & C# primer, the .NET UI landscape, Avalonia (layout, MVVM with CommunityToolkit, styles/themes, DI & navigation, async & validation), .NET MAUI (Shell, platform features, offline sync), testing & packaging, and a boss: a BranchStory desktop + mobile client |
+
+Every region starts with a beginner **syntax primer** (JS/TS, SQL, C#, shell/YAML/Docker, XAML, cloud big picture) and Basecamp explains how challenges, tests and error messages work — including German/English keyboard tips (the editor turns `´ ’ “ ” „` into real quotes automatically).
 
 Everything is unlocked: follow the suggested route, or jump straight to whatever you want to refresh.
 
@@ -102,8 +104,7 @@ What does `typeof null` return?
 - **Project guide for contributors and AI agents:** [`AGENTS.md`](AGENTS.md)
 - **Design system:** [`docs/DESIGN.md`](docs/DESIGN.md)
 
-New region (e.g. XAML / Avalonia / MAUI): create `src/content/<folder>/`, enable it in
-`src/content/tracks.ts`, run `npm run validate`.
+New region: create `src/content/<folder>/`, add it to `src/content/tracks.ts`, run `npm run validate`.
 
 ## Tech
 

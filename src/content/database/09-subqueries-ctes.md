@@ -2,7 +2,7 @@
 id: db-09
 title: Subqueries, CTEs & Recursive Queries
 level: intermediate
-minutes: 45
+minutes: 65
 xp: 150
 summary: Queries inside queries — scalar, IN and EXISTS subqueries, the NOT IN + NULL trap, readable CTEs, recursive CTEs that walk a branching video tree, and LATERAL joins.
 ---
@@ -176,7 +176,7 @@ WHERE NOT EXISTS (SELECT 1 FROM projects p WHERE p.owner_id = u.id);
 :::job title="What the ORM writes"
 When you write `db.Users.Where(u => u.Projects.Any())` in EF Core, or
 `.Where(u => !u.Projects.Any())`, the SQL it generates is `WHERE EXISTS (SELECT 1 …)` /
-`WHERE NOT EXISTS (…)`. Recognising this in logs (and in `EXPLAIN` as `Semi Join` / `Anti
+`WHERE NOT EXISTS (…)`. Recognizing this in logs (and in `EXPLAIN` as `Semi Join` / `Anti
 Join`) is a day-one skill when you're chasing a slow endpoint.
 :::
 
@@ -400,11 +400,11 @@ Why teams like CTEs:
 - **Debuggability.** Replace the final `SELECT` with `SELECT * FROM balances` to inspect a step.
 - **Reuse.** A CTE referenced twice is written once.
 
-:::pro title="Are CTEs an optimisation fence?"
-Before PostgreSQL 12, every CTE was computed separately and stored ("materialised"), which
+:::pro title="Are CTEs an optimization fence?"
+Before PostgreSQL 12, every CTE was computed separately and stored ("materialized"), which
 blocked the planner from pushing filters into it — old blog posts warn about this. Since PG 12,
 a non-recursive CTE that is referenced **once** and has no side effects is **inlined** like a
-subquery, so it costs nothing. (A CTE referenced twice or more is still materialised by default.) You can still force either behaviour: `WITH x AS MATERIALIZED (…)` (compute once,
+subquery, so it costs nothing. (A CTE referenced twice or more is still materialized by default.) You can still force either behavior: `WITH x AS MATERIALIZED (…)` (compute once,
 useful when it's expensive and referenced many times) or `AS NOT MATERIALIZED`. The Performance
 Tuning lesson, which comes right after Indexes & EXPLAIN, shows when that matters.
 :::
@@ -423,12 +423,12 @@ SELECT * FROM recent WHERE project_id = 5;
 - [ ] Computes all recent jobs into a temporary result first, then filters for project 5
 - [x] Inlines the CTE like a subquery, so both conditions are applied together and the `project_id` index can be used
 - [ ] Rejects it — you can't add a `WHERE` to a CTE you've already filtered
-- [ ] Writes the CTE result to a temporary table on disk, because CTEs are always materialised
+- [ ] Writes the CTE result to a temporary table on disk, because CTEs are always materialized
 > `recent` is referenced once, isn't recursive and has no side effects, so since PG 12 it is
 > folded into the main query: the planner sees `created_at > … AND project_id = 5` on
-> `render_jobs` and can pick the index. The first answer describes the **pre-12** behaviour that
+> `render_jobs` and can pick the index. The first answer describes the **pre-12** behavior that
 > old blog posts warn about (or what you get today with `AS MATERIALIZED`); the last one
-> overstates even that — a materialised CTE is kept in memory and only spills to disk if it's
+> overstates even that — a materialized CTE is kept in memory and only spills to disk if it's
 > large. Filtering a CTE's output is completely normal SQL.
 :::
 
@@ -730,7 +730,7 @@ SELECT title FROM up;
 
 A tree can't loop — but data isn't always a tree. If someone sets clip 1's parent to clip 7,
 the recursion never runs out of rows and the query spins until it hits `statement_timeout` (or
-memory). Defences, from simplest to best:
+memory). Defenses, from simplest to best:
 
 1. **Depth limit:** add `WHERE t.depth < 50` to the recursive part.
 2. **Track visited ids** in an array and refuse to revisit:
@@ -878,7 +878,7 @@ Q: What is a correlated subquery?
 A: A subquery that references a column of the outer query, so (conceptually) it is evaluated per outer row.
 Q: How does the planner usually execute EXISTS / NOT EXISTS?
 A: As a semi-join / anti-join, which stops at the first match.
-Q: Since which version are single-use CTEs inlined, and how do you force materialisation?
+Q: Since which version are single-use CTEs inlined, and how do you force materialization?
 A: PostgreSQL 12. Write `WITH x AS MATERIALIZED (…)` (or `NOT MATERIALIZED` to force inlining).
 Q: The two parts of a recursive CTE?
 A: An anchor query (starting rows) UNION ALL a recursive query that references the CTE — which, there, means only the rows found in the previous iteration.

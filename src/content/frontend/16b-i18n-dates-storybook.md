@@ -2,7 +2,7 @@
 id: fe-30
 title: i18n, Dates & Storybook
 level: intermediate
-minutes: 85
+minutes: 95
 xp: 150
 summary: Format money, numbers, dates and plurals correctly for every locale with the built-in Intl APIs, survive time zones and DST, and document and test your UI kit in Storybook.
 ---

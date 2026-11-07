@@ -2,7 +2,7 @@
 id: fe-24
 title: Real-time & Resilient UI
 level: expert
-minutes: 65
+minutes: 90
 xp: 230
 summary: Optimistic UI that survives collaboration — 409 conflicts and versions, useOptimistic, WebSockets vs SSE vs SignalR, presence, reconnection with backoff and an offline queue.
 ---

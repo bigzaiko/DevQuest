@@ -2,7 +2,7 @@
 id: db-13
 title: jsonb, Arrays & Full-Text Search
 level: advanced
-minutes: 55
+minutes: 85
 xp: 200
 summary: Store and query documents with jsonb, index them with GIN, shape API responses in SQL, use arrays and unnest, add real search with tsvector, and know when pg_trgm and pgvector take over — plus when NOT to reach for jsonb.
 ---
@@ -36,7 +36,7 @@ Postgres has two JSON types:
 | | `json` | `jsonb` |
 |---|---|---|
 | Storage | the original text, verbatim | a parsed binary format |
-| Whitespace / key order / duplicate keys | preserved | normalised (keys sorted, last duplicate wins) |
+| Whitespace / key order / duplicate keys | preserved | normalized (keys sorted, last duplicate wins) |
 | Insert speed | slightly faster (no parsing) | slightly slower |
 | Query speed | re-parses on every access | fast — already parsed |
 | Indexable with GIN | no | **yes** |
@@ -518,7 +518,7 @@ ORDER BY parent_clip_id;
 
 ## When jsonb, when columns?
 
-jsonb is not a licence to skip modelling. A useful decision table:
+jsonb is not a license to skip modeling. A useful decision table:
 
 | Use **columns** when… | Use **jsonb** when… |
 |---|---|
@@ -682,7 +682,7 @@ full-text search engine built in.
 
 Two types do the work:
 
-- **`tsvector`** — a document turned into a sorted list of normalised words (**lexemes**) with
+- **`tsvector`** — a document turned into a sorted list of normalized words (**lexemes**) with
   positions. `to_tsvector('english', 'Bribe the guard')` → `'bribe':1 'guard':3`. The stop word
   *the* is gone; words are stemmed (*jumped* → *jump*, *foxes* → *fox*).
 - **`tsquery`** — a search expression of lexemes with `&` (and), `|` (or), `!` (not) and `<->`
@@ -987,7 +987,7 @@ A: As one array parameter: `WHERE id = ANY($1)`.
 Q: `jsonb_ops` vs `jsonb_path_ops` GIN?
 A: Default `jsonb_ops` supports `@>`, `?`, `?|`, `?&`. `jsonb_path_ops` is smaller/faster but only `@>` (and jsonpath). Pick `jsonb_path_ops` unless you need the key-existence operators.
 Q: tsvector vs tsquery?
-A: tsvector = normalised lexemes of a document; tsquery = the search expression. Match with `@@`.
+A: tsvector = normalized lexemes of a document; tsquery = the search expression. Match with `@@`.
 Q: Which function for a search box?
 A: `websearch_to_tsquery` — accepts quotes, `or`, `-word` and never throws on user input.
 Q: How to make full-text search fast?

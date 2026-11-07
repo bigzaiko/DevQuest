@@ -2,7 +2,7 @@
 id: ops-10
 title: Pods, ReplicaSets & Deployments
 level: beginner
-minutes: 65
+minutes: 75
 xp: 120
 summary: The workload trio — what a pod really is, how Deployments roll out and roll back via ReplicaSets, the kubectl moves you'll use daily, and running your own images in kind.
 ---

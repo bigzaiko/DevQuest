@@ -2,7 +2,7 @@
 id: fe-22
 title: Testing React with Vitest & Testing Library
 level: advanced
-minutes: 65
+minutes: 75
 xp: 200
 summary: Set up Vitest + React Testing Library, query like a user (getByRole first), drive the UI with user-event, mock the network, test hooks — and learn what not to test. Then write tests that catch real bugs.
 ---

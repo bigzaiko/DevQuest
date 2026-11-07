@@ -153,7 +153,7 @@ lesson fills in its folders.
 branchstory/
 ├── BranchStory.slnx                  # .NET solution (XML format, .NET 10 default)
 ├── global.json  .editorconfig  .gitignore  README.md
-├── .config/dotnet-tools.json         # dotnet-ef pinned per repo
+├── dotnet-tools.json                 # dotnet-ef pinned per repo
 ├── api/
 │   ├── BranchStory.Api/              # minimal API: Auth/, Authorization/, Features/{Projects,Sharing,Publishing}/,
 │   │                                 #   Quotas/, Realtime/, Health/, Security/, Program.cs (cap-03 … cap-10)
@@ -437,7 +437,7 @@ everyone (and CI) the same EF Core CLI:
 ```bash
 dotnet new tool-manifest
 dotnet tool install dotnet-ef
-dotnet tool list            # dotnet-ef 10.x, manifest .config/dotnet-tools.json
+dotnet tool list            # dotnet-ef 10.x, manifest dotnet-tools.json (.NET 10 writes it to the root)
 ```
 
 **5. Build the backend.**
@@ -514,7 +514,7 @@ shows exactly what changed, and you can always get back to a working demo.
 - [ ] `dotnet --version` prints 10.0.x and `node --version` prints an LTS release (24+)
 - [ ] `BranchStory.slnx` lists `BranchStory.Api`, `BranchStory.Data` and `BranchStory.Api.Tests`
 - [ ] `dotnet build` and `dotnet test` succeed from the repository root
-- [ ] `dotnet tool list` shows `dotnet-ef` from `.config/dotnet-tools.json`
+- [ ] `dotnet tool list` shows `dotnet-ef` from `dotnet-tools.json` (SDKs before .NET 10 put it in `.config/`)
 - [ ] `npm run build` in `web/` succeeds
 - [ ] `git status` is clean after the first commit, and `bin/`, `obj/` and `node_modules/` are not tracked
 :::

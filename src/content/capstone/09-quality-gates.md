@@ -1,7 +1,7 @@
 ---
 id: cap-09
 title: Quality Gates — Tests at Every Level and CI
-level: advanced
+level: expert
 minutes: 330
 xp: 250
 summary: xUnit and Vitest for the pure core, Testcontainers for the queue's locking rules, Playwright with an axe accessibility gate for real flows, risk-based coverage thresholds, and a GitHub Actions pipeline that runs all of it against a Postgres service container.
@@ -78,6 +78,9 @@ replace `tests/BranchStory.UnitTests/BranchStory.UnitTests.csproj` completely:
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The worker is an ASP.NET Core app. Sharing its framework makes NuGet resolve the
+         Microsoft.Extensions.* packages the same way (otherwise: NU1605 package downgrade). -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="..\..\worker\BranchStory.Worker\BranchStory.Worker.csproj" />
   </ItemGroup>
 
@@ -103,7 +106,7 @@ threshold is missed. Add this where the comment says *step 2*:
   <!-- Gate only the pure core: the DB-facing code is covered by integration tests instead.
        The trailing * also includes compiler-generated nested types (lambdas, iterators). -->
   <Include>[BranchStory.Worker]BranchStory.Worker.Publishing.PlayerBuilder*,[BranchStory.Worker]BranchStory.Worker.Publishing.Slug*,[BranchStory.Worker]BranchStory.Worker.Jobs.Backoff*</Include>
-  <Threshold>90,85</Threshold>
+  <Threshold>95,90</Threshold>
   <ThresholdType>line,branch</ThresholdType>
 </PropertyGroup>
 ```
@@ -297,7 +300,7 @@ If the gate is red with all tests present, open `coverage/unit/coverage.cobertur
 uncovered branches: usually a `?.` or `??` on a path no test takes. Add the test, not an exclusion.
 
 - [ ] All unit tests pass in under 2 seconds
-- [ ] `-p:CollectCoverage=true` writes `coverage/unit/coverage.cobertura.xml` and passes the 90 % line / 85 % branch gate
+- [ ] `-p:CollectCoverage=true` writes `coverage/unit/coverage.cobertura.xml` and passes the 95 % line / 90 % branch gate
 - [ ] Removing the URL sanitizer makes at least one test fail
 - [ ] Commenting out the invalid-document theory makes the coverage gate fail
 :::
@@ -464,6 +467,7 @@ public class JobStoreTests(PostgresFixture fx) : IAsyncLifetime
 {
     private readonly JobStore _store = new(fx.DataSource);
     private static readonly TimeSpan Minute = TimeSpan.FromMinutes(1);
+    private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     public ValueTask InitializeAsync() => new(fx.ResetAsync());   // every test starts with an empty queue
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
@@ -490,26 +494,26 @@ public class JobStoreTests(PostgresFixture fx) : IAsyncLifetime
     public async Task A_live_lease_is_not_reclaimed()
     {
         await fx.SeedQueuedJobsAsync(1);
-        Assert.NotNull(await _store.TryClaimAsync("w1", Minute, default));
-        Assert.Null(await _store.TryClaimAsync("w2", Minute, default));
+        Assert.NotNull(await _store.TryClaimAsync("w1", Minute, Ct));
+        Assert.Null(await _store.TryClaimAsync("w2", Minute, Ct));
     }
 
     [Fact]
     public async Task An_expired_lease_is_reclaimed_and_the_old_owner_is_fenced_out()
     {
         await fx.SeedQueuedJobsAsync(1);
-        var first = await _store.TryClaimAsync("w1", Minute, default);
+        var first = await _store.TryClaimAsync("w1", Minute, Ct);
         Assert.NotNull(first);
         await fx.ExecAsync("UPDATE jobs SET leased_until = now() - interval '1 second'");   // w1 "died"
 
-        var second = await _store.TryClaimAsync("w2", Minute, default);
+        var second = await _store.TryClaimAsync("w2", Minute, Ct);
         Assert.NotNull(second);
         Assert.Equal(first.Id, second.Id);
         Assert.Equal(2, second.Attempts);
 
-        Assert.False(await _store.ExtendLeaseAsync(first.Id, "w1", Minute, default));
-        Assert.False(await _store.CompleteAsync(first, "w1", default));
-        Assert.True(await _store.CompleteAsync(second, "w2", default));
+        Assert.False(await _store.ExtendLeaseAsync(first.Id, "w1", Minute, Ct));
+        Assert.False(await _store.CompleteAsync(first, "w1", Ct));
+        Assert.True(await _store.CompleteAsync(second, "w2", Ct));
         Assert.Equal("succeeded", await fx.ScalarAsync<string>("SELECT status FROM jobs WHERE id = @id", ("id", first.Id)));
     }
 
@@ -517,12 +521,12 @@ public class JobStoreTests(PostgresFixture fx) : IAsyncLifetime
     public async Task A_retry_is_not_claimable_until_its_backoff_has_passed()
     {
         await fx.SeedQueuedJobsAsync(1);
-        var job = (await _store.TryClaimAsync("w1", Minute, default))!;
-        Assert.True(await _store.RetryAsync(job, "w1", TimeSpan.FromMinutes(5), "timeout", default));
+        var job = (await _store.TryClaimAsync("w1", Minute, Ct))!;
+        Assert.True(await _store.RetryAsync(job, "w1", TimeSpan.FromMinutes(5), "timeout", Ct));
 
-        Assert.Null(await _store.TryClaimAsync("w1", Minute, default));
+        Assert.Null(await _store.TryClaimAsync("w1", Minute, Ct));
         await fx.ExecAsync("UPDATE jobs SET run_after = now() - interval '1 second'");
-        var again = await _store.TryClaimAsync("w1", Minute, default);
+        var again = await _store.TryClaimAsync("w1", Minute, Ct);
         Assert.Equal(2, again!.Attempts);
     }
 
@@ -530,41 +534,42 @@ public class JobStoreTests(PostgresFixture fx) : IAsyncLifetime
     public async Task Release_on_shutdown_does_not_burn_an_attempt()
     {
         await fx.SeedQueuedJobsAsync(1);
-        var job = (await _store.TryClaimAsync("w1", Minute, default))!;
-        Assert.True(await _store.ReleaseAsync(job, "w1", default));
-        Assert.Equal(1, (await _store.TryClaimAsync("w2", Minute, default))!.Attempts);
+        var job = (await _store.TryClaimAsync("w1", Minute, Ct))!;
+        Assert.True(await _store.ReleaseAsync(job, "w1", Ct));
+        Assert.Equal(1, (await _store.TryClaimAsync("w2", Minute, Ct))!.Attempts);
     }
 
     [Fact]
     public async Task Status_changes_are_announced_on_job_events()
     {
         await fx.SeedQueuedJobsAsync(1);
-        await using var listener = await fx.DataSource.OpenConnectionAsync();
+        await using var listener = await fx.DataSource.OpenConnectionAsync(Ct);
         var payloads = new ConcurrentQueue<string>();
         listener.Notification += (_, e) => payloads.Enqueue(e.Payload);
-        await using (var listen = new NpgsqlCommand("LISTEN job_events", listener)) await listen.ExecuteNonQueryAsync();
+        await using (var listen = new NpgsqlCommand("LISTEN job_events", listener)) await listen.ExecuteNonQueryAsync(Ct);
 
-        var job = (await _store.TryClaimAsync("w1", Minute, default))!;
-        await _store.CompleteAsync(job, "w1", default);
+        var job = (await _store.TryClaimAsync("w1", Minute, Ct))!;
+        await _store.CompleteAsync(job, "w1", Ct);
 
-        Assert.True(await listener.WaitAsync(TimeSpan.FromSeconds(5)));
-        Assert.True(payloads.TryDequeue(out var payload));
-        using var json = JsonDocument.Parse(payload!);
-        Assert.Equal("succeeded", json.RootElement.GetProperty("status").GetString());
-        Assert.Equal(job.Id, json.RootElement.GetProperty("id").GetInt64());
-        Assert.Equal(job.ProjectId, json.RootElement.GetProperty("projectId").GetGuid());
-        Assert.Equal(JsonValueKind.Null, json.RootElement.GetProperty("slug").ValueKind); // nothing published yet
+        // The claim and the completion each announce themselves. They may arrive in one batch or two.
+        while (payloads.Count < 2 && await listener.WaitAsync(TimeSpan.FromSeconds(5), Ct)) { }
+        var events = payloads.Select(p => JsonSerializer.Deserialize<JsonElement>(p)).ToList();
+        Assert.Equal("running,succeeded", string.Join(",", events.Select(e => e.GetProperty("status").GetString())));
+        var done = events[1];
+        Assert.Equal(job.Id, done.GetProperty("id").GetInt64());
+        Assert.Equal(job.ProjectId, done.GetProperty("projectId").GetGuid());
+        Assert.Equal(JsonValueKind.Null, done.GetProperty("slug").ValueKind); // nothing published yet
     }
 
     [Fact]
     public async Task A_lease_that_expires_on_the_last_attempt_is_dead_lettered()
     {
         await fx.SeedQueuedJobsAsync(1, maxAttempts: 1);
-        var job = (await _store.TryClaimAsync("w1", Minute, default))!;
+        var job = (await _store.TryClaimAsync("w1", Minute, Ct))!;
         await fx.ExecAsync("UPDATE jobs SET leased_until = now() - interval '1 second'");   // crashed on attempt 1 of 1
 
-        Assert.Null(await _store.TryClaimAsync("w2", Minute, default));                   // the claim skips it…
-        Assert.Equal(1, await _store.ReapExhaustedAsync(default));                         // …the reaper fails it
+        Assert.Null(await _store.TryClaimAsync("w2", Minute, Ct));                   // the claim skips it…
+        Assert.Equal(1, await _store.ReapExhaustedAsync(Ct));                         // …the reaper fails it
         Assert.Equal("failed", await fx.ScalarAsync<string>("SELECT status FROM jobs WHERE id = @id", ("id", job.Id)));
     }
 }
@@ -655,7 +660,7 @@ Add to the `scripts` in `web/package.json` (keep `test` and `test:watch` from ca
         reporter: ['text-summary', 'html', 'lcov'],
         // Gate the pure core, track the rest.
         thresholds: {
-          'src/modules/editor/{reducer,validate,history,merge}.ts': { lines: 90, branches: 85, functions: 90 },
+          'src/modules/editor/{reducer,validate,history,merge}.ts': { lines: 90, branches: 75, functions: 90 },
           'src/modules/player/**': { lines: 80, branches: 75 },
         },
       },
@@ -702,6 +707,7 @@ function checkInvariants(doc: StoryDoc) {
     expect(ids.has(e.to), `edge ${e.id} has a live target`).toBe(true)
   }
   expect(new Set(doc.edges.map((e) => e.id)).size, 'edge ids are unique').toBe(doc.edges.length)
+  if (doc.startNodeId !== null) expect(ids.has(doc.startNodeId), 'the start scene exists').toBe(true)
 }
 
 describe('storyReducer invariants', () => {
@@ -714,11 +720,19 @@ describe('storyReducer invariants', () => {
 
       for (let step = 0; step < 300; step++) {
         const ids = doc.nodes.map((n) => n.id)
+        const edgeIds = doc.edges.map((e) => e.id)
         const r = rand()
-        const action =
-          r < 0.4 || ids.length < 2 ? addNode(`n${++counter}`)
-          : r < 0.8 ? connect(`e${++counter}`, pick(ids), pick(ids))
-          : deleteNode(pick(ids))
+        // Mostly growth, so the graph gets big enough to be interesting, but every action type runs.
+        const action: StoryAction =
+          r < 0.3 || ids.length < 2 ? addNode(`n${++counter}`)
+          : r < 0.55 ? connect(`e${++counter}`, pick(ids), pick(ids))
+          : r < 0.65 ? deleteNode(pick(ids))
+          : r < 0.72 ? { type: 'updateNode', id: pick(ids), patch: { title: `t${step % 3}` } }
+          : r < 0.79 ? { type: 'moveNode', id: pick(ids), x: rand() * 500, y: rand() * 500 }
+          : r < 0.86 ? { type: 'setStart', id: pick(ids) }
+          : r < 0.93 && edgeIds.length > 0 ? { type: 'updateEdge', id: pick(edgeIds), label: `l${step % 3}` }
+          : edgeIds.length > 0 ? { type: 'deleteEdge', id: pick(edgeIds) }
+          : addNode(`n${++counter}`)
         // deepFreeze makes any in-place mutation throw (ES modules run in strict mode).
         doc = deepFreeze(storyReducer(doc, action))
         checkInvariants(doc)

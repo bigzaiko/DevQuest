@@ -2,7 +2,7 @@
 id: fe-21
 title: React Performance
 level: advanced
-minutes: 55
+minutes: 75
 xp: 190
 summary: Understand what a re-render costs, fix the slow ones with memo, the React Compiler, code splitting and virtualization — and measure with the Profiler, Web Vitals and bundle analysis.
 ---

@@ -2,7 +2,7 @@
 id: fe-20
 title: Modular Frontend Architecture
 level: advanced
-minutes: 55
+minutes: 65
 xp: 190
 summary: Organise a growing React app into feature modules with public APIs, enforce dependency rules with ESLint, and know when a monorepo is worth it.
 ---

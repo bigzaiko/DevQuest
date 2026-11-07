@@ -2,7 +2,7 @@
 id: fe-04
 title: TypeScript for Real Apps
 level: intermediate
-minutes: 45
+minutes: 65
 xp: 150
 summary: Generics, utility types, discriminated unions with exhaustive checks, `satisfies`, `as const`, typing API responses and writing type guards.
 ---

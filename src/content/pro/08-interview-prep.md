@@ -2,7 +2,7 @@
 id: pro-08
 title: Interview Prep Across the Stack
 level: advanced
-minutes: 75
+minutes: 100
 xp: 270
 summary: A dense refresher for full-stack interviews — JS/TS, React, C#/.NET, SQL, HTTP, Docker/K8s, system design and STAR stories — with tricky quizzes, classic coding problems and big flashcard decks.
 ---

@@ -58,14 +58,14 @@ source, or a private endpoint that DNS doesn't resolve.
 
 | This region (self-hosted) | Azure | AWS | Same API? |
 |---|---|---|---|
-| Redis 8 (cl-01, cl-02, cl-03) | **Azure Managed Redis** (Azure Cache for Redis is being retired) | **ElastiCache** for Valkey / Redis OSS, **MemoryDB** (durable) | Yes, RESP. Cluster rules and auth differ |
-| RabbitMQ (cl-04) | **Service Bus** queues + topics/subscriptions | **SQS** (queues), **SNS** (fan-out), **EventBridge** (routing), Amazon MQ (actual RabbitMQ) | No (Service Bus is AMQP **1.0**, SQS is HTTP) |
-| Kafka (cl-04) | **Event Hubs** (Kafka-compatible endpoint) | **MSK** (actual Kafka), Kinesis | Kafka protocol: yes |
-| Redis leased queue (cl-03, cl-09) | Service Bus queue (PeekLock) | SQS (visibility timeout) | No, but same semantics |
-| SeaweedFS / S3 (cl-05) | **Blob Storage** | **S3** | S3 → S3 yes. Blob: **no** |
-| KEDA (cl-06) | KEDA on **AKS** (managed add-on), **Container Apps** scale rules | KEDA on **EKS** (Helm), **Lambda** event source mapping, **ECS** auto scaling | KEDA YAML: yes |
-| Keycloak (cl-07) | **Microsoft Entra ID** (staff), **Entra External ID** (customers) | **Cognito** user pools | OIDC: yes. Claims: no |
-| OTel → Tempo/Prometheus/Loki (cl-08) | **Azure Monitor / Application Insights**, managed Prometheus, Managed Grafana | **CloudWatch**, **X-Ray**, Managed Prometheus (AMP), Managed Grafana (AMG) | OTLP + PromQL: yes |
+| Redis 8 (*Redis Fundamentals*, *Caching*, *Queues & Locks*) | **Azure Managed Redis** (Azure Cache for Redis is being retired) | **ElastiCache** for Valkey / Redis OSS, **MemoryDB** (durable) | Yes, RESP. Cluster rules and auth differ |
+| RabbitMQ (*Brokers & Outbox*) | **Service Bus** queues + topics/subscriptions | **SQS** (queues), **SNS** (fan-out), **EventBridge** (routing), Amazon MQ (actual RabbitMQ) | No (Service Bus is AMQP **1.0**, SQS is HTTP) |
+| Kafka (*Brokers & Outbox*) | **Event Hubs** (Kafka-compatible endpoint) | **MSK** (actual Kafka), Kinesis | Kafka protocol: yes |
+| Redis leased queue (*Queues & Locks*, *Boss*) | Service Bus queue (PeekLock) | SQS (visibility timeout) | No, but same semantics |
+| SeaweedFS / S3 (*Object Storage*) | **Blob Storage** | **S3** | S3 → S3 yes. Blob: **no** |
+| KEDA (*KEDA* lesson) | KEDA on **AKS** (managed add-on), **Container Apps** scale rules | KEDA on **EKS** (Helm), **Lambda** event source mapping, **ECS** auto scaling | KEDA YAML: yes |
+| Keycloak (*Keycloak* lesson) | **Microsoft Entra ID** (staff), **Entra External ID** (customers) | **Cognito** user pools | OIDC: yes. Claims: no |
+| OTel → Tempo/Prometheus/Loki (*Observability*) | **Azure Monitor / Application Insights**, managed Prometheus, Managed Grafana | **CloudWatch**, **X-Ray**, Managed Prometheus (AMP), Managed Grafana (AMG) | OTLP + PromQL: yes |
 | Env vars / K8s Secrets | **Key Vault** | **Secrets Manager**, SSM Parameter Store | No |
 | Passwords in connection strings | **Managed identity**, AKS Workload Identity | **IAM roles**: EKS Pod Identity / IRSA, ECS task role | No |
 
@@ -227,7 +227,7 @@ Four things differ from your local `localhost:6379`:
    12 hours by design).
 3. **It's (usually) a cluster.** Data is sharded by hash slot. A Lua script or `MULTI` that
    touches `jobs` and `processing` in different slots fails with `CROSSSLOT`. This is exactly why
-   cl-09 put every key under the `{media}` hash tag. Code that followed that rule moves without
+   the boss put every key under the `{media}` hash tag. Code that followed that rule moves without
    changes. (Azure Managed Redis offers OSS and Enterprise cluster policies, and a non-clustered
    option on small SKUs; ElastiCache has cluster mode enabled or disabled. Write for the cluster
    case and every option works.)
@@ -243,7 +243,7 @@ Four things differ from your local `localhost:6379`:
   compute units. Model it against a node price before you switch.
 - **Eviction policy decides whether your queue survives.** Managed caches default to a
   `volatile-*` policy, which only evicts keys with a TTL. If someone changes it to `allkeys-lru`
-  to "fix" memory pressure, the cl-03 queue lists (no TTL) become eviction candidates. If Redis is a
+  to "fix" memory pressure, the queue lists from *Redis as Queue, Bus and Lock* (no TTL) become eviction candidates. If Redis is a
   **queue**, alert on memory, and keep the policy at `noeviction` or `volatile-*`.
 - **Cross-AZ traffic is billed on AWS.** A client in AZ a talking to a primary in AZ b pays per GB.
   Busy caches feel this.
@@ -251,7 +251,7 @@ Four things differ from your local `localhost:6379`:
 :::pro title="Cache or database? Pick the product that matches the promise"
 ElastiCache and Azure Managed Redis are caches: they can lose recent writes on failover. If
 the data **must not be lost** (a session store you can't rebuild, a leaderboard that *is* the
-source of truth), MemoryDB is the AWS answer, or keep the truth in Postgres as cl-09 did and treat
+source of truth), MemoryDB is the AWS answer, or keep the truth in Postgres as the boss lesson did and treat
 Redis as a rebuildable copy. Teams that "just turn on persistence" on a cache and call it a
 database learn the difference during their first failover.
 :::
@@ -261,7 +261,7 @@ run a cluster locally (or at least test your Lua scripts with all keys under one
 is nothing to emulate: the protocol is the product.
 
 :::quiz id=cl-10-q2 xp=15
-You move the cl-09 worker from a single Redis 8 container to a clustered Azure Managed Redis.
+You move the boss's worker from a single Redis 8 container to a clustered Azure Managed Redis.
 The claim script now fails with `CROSSSLOT Keys in request don't hash to the same slot` for a
 colleague's new `jobs:priority` list, while the original queue keeps working. Why?
 - [ ] Azure Managed Redis doesn't support Lua
@@ -277,7 +277,7 @@ colleague's new `jobs:priority` list, while the original queue keeps working. Wh
 
 ## Brokers → Service Bus, Event Hubs, SQS, SNS, EventBridge, MSK
 
-cl-04 gave you two mental models: a **queue** (work distribution, delete on ack) and a **log**
+*Message Brokers & the Outbox Pattern* gave you two mental models: a **queue** (work distribution, delete on ack) and a **log**
 (retained, replayable, consumer offsets). The clouds sell both, plus a third shape that RabbitMQ
 does with exchanges: **routing/fan-out**.
 
@@ -288,11 +288,11 @@ does with exchanges: **routing/fan-out**.
 | Integration events across teams/SaaS | — | Event Grid | **EventBridge** (schema registry, archive & replay) |
 | Log / stream | Kafka, Redis Streams | **Event Hubs** (speaks the Kafka protocol on Standard and up) | **MSK** (real Kafka), MSK Serverless, Kinesis |
 
-### Your cl-03 / cl-09 concepts, already built in
+### Your *Redis as Queue, Bus and Lock* / boss concepts, already built in
 
 The leased Redis queue you built by hand is what these services do internally:
 
-| You built (cl-03, cl-09) | Service Bus | SQS |
+| You built (*Queues & Locks*, *Boss*) | Service Bus | SQS |
 |---|---|---|
 | Lease key with TTL | **PeekLock**, `LockDuration` (max 5 min) | **Visibility timeout** (default 30 s, max 12 h) |
 | Heartbeat (`PEXPIRE` while working) | `RenewMessageLockAsync` (the processor can auto-renew) | `ChangeMessageVisibility` |
@@ -306,19 +306,19 @@ The leased Redis queue you built by hand is what these services do internally:
 
 That last row matters. A Service Bus lock token or an SQS receipt handle tells the **broker** who
 may complete the message. It doesn't stop a zombie worker whose lock expired from writing to
-**your database** afterwards. The cl-09 rule "the attempt number is the fencing token" still
+**your database** afterwards. The boss's rule "the attempt number is the fencing token" still
 applies; `DeliveryCount` is a convenient source for it.
 
 ### What stays exactly the same
 
 - **At-least-once.** Every one of these services redelivers. Duplicate detection narrows the window
-  on the *send* side; it doesn't make your handler idempotent. Keep the **inbox** from cl-04.
+  on the *send* side; it doesn't make your handler idempotent. Keep the **inbox** from *Message Brokers & the Outbox Pattern*.
 - **The outbox.** A Service Bus or SQS send cannot join your Postgres or Azure SQL transaction.
   The dual-write problem is identical, so the transactional outbox is identical.
   (Service Bus transactions only group operations *within* Service Bus.)
 - **Small messages, big blobs elsewhere.** Standard Service Bus allows 256 KB per message (Premium
   much more), SQS 1 MiB. Send the job **id**, keep the payload in Postgres or object storage
-  ("claim check"), as cl-09 already does.
+  ("claim check"), as the boss lesson already does.
 
 ### What changes in .NET code
 
@@ -355,12 +355,12 @@ foreach (var m in resp.Messages ?? [])
 
 If the team uses **MassTransit** or **Wolverine**, the switch from RabbitMQ to Service Bus or SQS
 is mostly a transport registration, and their outbox/inbox keep working. Check the framework's
-current licensing terms, as cl-04 said.
+current licensing terms, as *Message Brokers & the Outbox Pattern* said.
 
 ### Logs: Event Hubs and MSK keep your Kafka client
 
 For the **log** shape the good news is bigger: your `Confluent.Kafka` producer and consumer from
-cl-04 keep working, because both services speak the Kafka protocol. What changes is, again, the
+*Message Brokers & the Outbox Pattern* keep working, because both services speak the Kafka protocol. What changes is, again, the
 identity layer:
 
 - **Event Hubs** exposes a Kafka endpoint at `<namespace>.servicebus.windows.net:9093` with
@@ -405,7 +405,7 @@ Each job takes 3–8 minutes. The team sees many jobs processed two or three tim
 - [x] Extend the visibility while working (`ChangeMessageVisibility` as a heartbeat, or a timeout above the worst-case job time), and keep the handler idempotent
 - [ ] Use short polling so the worker sees messages sooner
 > The visibility timeout is SQS's **lease**. After 30 s the message becomes visible again and a
-> second worker takes it, exactly like an expired `{media}:lease:*` key in cl-09. The fix is the same
+> second worker takes it, exactly like an expired `{media}:lease:*` key in the boss lesson. The fix is the same
 > as there: renew the lease while working (or size it for the worst case) and stay idempotent for
 > the duplicates you'll still get. FIFO deduplication only applies to *sends* within 5 minutes; it
 > doesn't stop redelivery after a timeout. A higher `maxReceiveCount` only delays dead-lettering,
@@ -423,14 +423,14 @@ You enable **duplicate detection** (10-minute window) on a Service Bus queue and
 > repeats inside the window. That's useful for outbox relays, which can't tell whether a send that
 > timed out actually went through. It does nothing for **redelivery**: lock expiry, abandon and
 > crashes still hand the same message to a consumer again. Resends after the window are new
-> messages. So the inbox/idempotency from cl-04 stays.
+> messages. So the inbox/idempotency from *Message Brokers & the Outbox Pattern* stays.
 :::
 
 ## Object storage → Blob Storage and S3
 
 ### S3 to S3: change two lines
 
-The cl-05 code was written against the S3 API with **SeaweedFS** behind it. Moving to AWS S3 means
+The code from *Object Storage & Direct Uploads (S3)* was written against the S3 API with **SeaweedFS** behind it. Moving to AWS S3 means
 deleting the local overrides:
 
 ```csharp
@@ -447,7 +447,7 @@ the bucket: all identical. What AWS adds on top of SeaweedFS is mostly **policy 
 
 - **Block Public Access** is on by default. Keep it; serve private reads with presigned GETs or
   CloudFront with origin access control.
-- **Lifecycle rules** that you sketched in cl-05 become real money. The one every bucket needs:
+- **Lifecycle rules** that you sketched in *Object Storage & Direct Uploads (S3)* become real money. The one every bucket needs:
   `AbortIncompleteMultipartUpload` after a day or so. Abandoned multipart uploads are **billed
   storage you can't see** in a normal listing.
 - **Storage classes** (Standard, Intelligent-Tiering, Glacier…) have minimum storage durations and
@@ -489,7 +489,7 @@ understand what a signature actually locks down:
 | Browser must send | `Content-Type` if signed | **`x-ms-blob-type: BlockBlob`** on every `Put Blob` |
 
 The last row is the classic first bug: an upload component that worked against S3 gets
-`400 MissingRequiredHeader` from Azure. And because SAS can't enforce type or size, the cl-05 rule
+`400 MissingRequiredHeader` from Azure. And because SAS can't enforce type or size, the rule from *Object Storage & Direct Uploads (S3)*
 becomes mandatory: **verify the blob on complete** (`GetPropertiesAsync` for size and content type,
 magic-byte sniffing for type) before you queue any work.
 
@@ -527,10 +527,10 @@ on the server, with an S3 adapter and a Blob adapter.
 
 **Local dev:** **Azurite** emulates Blob (plus Queue and Table) storage in one small container and
 speaks the real REST API, so the Azure SDK, SAS tokens and Azure Storage Explorer all work against
-it. For S3, keep **SeaweedFS** from cl-05.
+it. For S3, keep **SeaweedFS** from *Object Storage & Direct Uploads (S3)*.
 
 :::quiz id=cl-10-q5 xp=15
-You port the React uploader from cl-05 to Azure. The API now returns a SAS URL with `sp=cw` and
+You port the React uploader from *Object Storage & Direct Uploads (S3)* to Azure. The API now returns a SAS URL with `sp=cw` and
 the browser sends the same `PUT` it sent to S3, with `Content-Type: video/mp4`. Azure answers
 **400**. A colleague also asks you to "make the SAS enforce mp4 and max 2 GB like the S3 policy".
 What do you tell them?
@@ -723,7 +723,7 @@ test('key rules', () => {
 
 ## KEDA → AKS, EKS, Container Apps, Lambda, ECS
 
-The cl-06 idea, "scale on the work waiting, down to zero", is so useful that every cloud ships
+The KEDA lesson's idea, "scale on the work waiting, down to zero", is so useful that every cloud ships
 it in some form. The question is how much of KEDA you still see.
 
 | Platform | How queue-based scaling works | You still write |
@@ -734,7 +734,7 @@ it in some form. The question is how much of KEDA you still see.
 | **AWS Lambda** | an SQS **event source mapping** polls and scales concurrency | batch size, max concurrency, partial batch failures |
 | **ECS / Fargate** | Application Auto Scaling on a CloudWatch metric (e.g. backlog per task) | alarms and scaling policies |
 
-On AKS or EKS, the cl-06 `ScaledObject` only changes its trigger and its authentication. The
+On AKS or EKS, the KEDA lesson's `ScaledObject` only changes its trigger and its authentication. The
 scaler authenticates with the **same workload identity** the app uses:
 
 ```yaml
@@ -758,7 +758,7 @@ spec:
       metadata:
         namespace: media-prod          # the Service Bus namespace name
         queueName: media-jobs
-        messageCount: "25"             # target per replica (like listLength in cl-06)
+        messageCount: "25"             # target per replica (like listLength in the KEDA lesson)
         activationMessageCount: "0"    # any message wakes the first pod
       authenticationRef: { name: media-sb-auth }
 ```
@@ -772,7 +772,7 @@ autoscaler or node auto-provisioning, and Karpenter or EKS Auto Mode on AWS.
 - **The AKS add-on lags upstream.** Its KEDA version is tied to the AKS version, and you can't tune
   every operator flag. Teams that need a brand-new scaler install KEDA with Helm instead (not both).
 - **Container Apps** removes the cluster entirely, scales to zero, and bills per vCPU-second and
-  GiB-second while replicas run. It's a great fit for workers like cl-09's. You give up
+  GiB-second while replicas run. It's a great fit for workers like the boss's. You give up
   DaemonSets, custom operators and fine-grained networking. **Container Apps jobs** with an event
   trigger are the managed `ScaledJob`.
 - **Lambda** has a hard **15-minute** limit per invocation. A thumbnail fits; a 40-minute
@@ -785,11 +785,11 @@ autoscaler or node auto-provisioning, and Karpenter or EKS Auto Mode on AWS.
   activation phase.
 
 :::quiz id=cl-10-q6 xp=15
-The cl-09 video worker must move to AWS. Jobs take 5–45 minutes, traffic is bursty with quiet
+The boss's video worker must move to AWS. Jobs take 5–45 minutes, traffic is bursty with quiet
 nights, and the team has no Kubernetes experience. Which option fits best?
 - [ ] Lambda with an SQS trigger, because it scales to zero for free
 - [x] ECS on Fargate fed by SQS, scaled on queue depth, with the visibility timeout extended while a job runs
-- [ ] EKS with KEDA, because it's the same YAML as cl-06
+- [ ] EKS with KEDA, because it's the same YAML as the KEDA lesson
 - [ ] ElastiCache as the queue with a Lambda poller
 > Lambda's 15-minute invocation cap rules it out for 45-minute transcodes, however attractive its
 > scale-to-zero is. EKS + KEDA works technically, but adopting a Kubernetes platform for one worker,
@@ -801,11 +801,11 @@ nights, and the team has no Kubernetes experience. Which option fits best?
 
 ## Keycloak → Entra ID, Entra External ID, Cognito
 
-OIDC is a standard, so the **flows** from cl-07 carry over: authorization code + PKCE in the
+OIDC is a standard, so the **flows** from the Keycloak lesson carry over: authorization code + PKCE in the
 browser, JWT bearer validation in ASP.NET Core, short-lived access tokens, audiences per API. What
 changes is **where users live**, **how roles reach the token**, and a handful of claim quirks.
 
-| | Keycloak (cl-07) | Microsoft Entra ID | Entra External ID | Amazon Cognito |
+| | Keycloak (*Keycloak* lesson) | Microsoft Entra ID | Entra External ID | Amazon Cognito |
 |---|---|---|---|---|
 | For whom | anyone you configure | employees, B2B partners | customers (B2C); successor of Azure AD B2C | customers |
 | Issuer | `…/realms/devquest` | `https://login.microsoftonline.com/{tenantId}/v2.0` | `https://{tenantId}.ciamlogin.com/{tenantId}/v2.0` | `https://cognito-idp.{region}.amazonaws.com/{poolId}` |
@@ -816,7 +816,7 @@ changes is **where users live**, **how roles reach the token**, and a handful of
 | SPA library | oidc-client-ts | **MSAL.js** (`@azure/msal-react`) | MSAL.js | Amplify, or oidc-client-ts |
 | Cost model | your servers | included with Microsoft 365/Entra licences | free tier by monthly active users, then per MAU | tiers by feature, per MAU |
 
-The cl-07 advice to **map provider claims to your own roles in one place** pays off here. If your
+The Keycloak lesson's advice to **map provider claims to your own roles in one place** pays off here. If your
 authorization policies check `permission:media.write` and one `IClaimsTransformation` builds that
 from `realm_access`, `roles` or `cognito:groups`, switching providers touches one class.
 
@@ -885,7 +885,7 @@ it works. What's going on, and what's the right fix?
 
 This row is the best news in the table: **OpenTelemetry is the portable layer**. Your
 `ActivitySource`, `Meter`, structured logs, W3C `traceparent` propagation through the queue, RED
-metrics and SLO thinking from cl-08 move unchanged. You swap the **exporter**, and maybe the backend
+metrics and SLO thinking from the Observability lesson move unchanged. You swap the **exporter**, and maybe the backend
 where you write queries.
 
 **Azure:** the Azure Monitor OpenTelemetry distro sends traces, metrics and logs to Application
@@ -908,7 +908,7 @@ exporter to an OTel Collector / CloudWatch agent. Traces go to **X-Ray** (now ac
 CloudWatch, with Application Signals for RED-style service views), logs to **CloudWatch Logs**,
 metrics to CloudWatch or **Amazon Managed Service for Prometheus**, dashboards in CloudWatch or
 **Amazon Managed Grafana**. AWS steers new instrumentation to OpenTelemetry rather than the older
-X-Ray SDKs. In .NET that means the code from cl-08 stays, with the plain OTLP exporter pointed at a
+X-Ray SDKs. In .NET that means the code from the Observability lesson stays, with the plain OTLP exporter pointed at a
 Collector (ADOT or the CloudWatch agent) running as a sidecar or DaemonSet:
 
 ```csharp
@@ -930,7 +930,7 @@ anything, check the current "Azure Monitor OpenTelemetry" and "CloudWatch Applic
 AWS Distro for OpenTelemetry" docs.
 :::
 
-A team can also keep the **whole cl-08 stack** (or Grafana Cloud, Datadog, Honeycomb) and only
+A team can also keep the **whole stack from the Observability lesson** (or Grafana Cloud, Datadog, Honeycomb) and only
 change where the Collector exports. That's the strongest argument for instrumenting with OTel
 instead of a vendor SDK.
 
@@ -1006,7 +1006,7 @@ way, so it doesn't care where the value came from. That's the whole design.
 
 ## Migration notes: moving the region to a cloud
 
-When a team moves the cl-09 pipeline from self-hosted to managed services, the order matters more
+When a team moves the boss's pipeline from self-hosted to managed services, the order matters more
 than the tools:
 
 1. **Identity and networking first.** Workload identity, private endpoints/VPC endpoints, DNS. Every
@@ -1051,10 +1051,10 @@ discover.
 | Azure Service Bus | **Service Bus emulator** (+ SQL Server container) | entities from a JSON file, limits such as a 5-minute max duplicate-detection window, no Premium features |
 | Azure Event Hubs | **Event Hubs emulator** (+ Azurite) | fixed entity config |
 | Azure Managed Redis / ElastiCache | `redis:8` or `valkey/valkey:8` | run a cluster to catch `CROSSSLOT` early |
-| S3 | **SeaweedFS** (cl-05) | no storage classes, IAM or event notifications |
+| S3 | **SeaweedFS** (*Object Storage*) | no storage classes, IAM or event notifications |
 | SQS / SNS | ElasticMQ (SQS API); LocalStack (check current licensing) | IAM is not enforced |
 | Entra ID / Cognito | Keycloak as a stand-in OIDC provider, or a dev tenant/pool | claims differ: isolate mapping |
-| Azure Monitor / CloudWatch | the cl-08 stack (`grafana/otel-lgtm`) | KQL/CloudWatch queries can't be tested locally |
+| Azure Monitor / CloudWatch | the *Observability* stack (`grafana/otel-lgtm`) | KQL/CloudWatch queries can't be tested locally |
 | Key Vault / Secrets Manager | `dotnet user-secrets`, `.env` | none, if code only reads `IConfiguration` |
 
 :::pro title="Aspire wires the emulators for you"
@@ -1087,7 +1087,7 @@ Locally everything is fast. What's the cleanest fix?
 :::lab id=cl-10-lab1 xp=150
 title: SAS uploads, duplicate detection and a dead-letter queue on emulators
 You'll run **Azurite** (Blob Storage) and the **Azure Service Bus emulator** in Docker Compose, then
-write a .NET 10 console app that does what the cl-09 API and worker do, with Azure services:
+write a .NET 10 console app that does what the boss's API and worker do, with Azure services:
 
 1. the "API" issues a **SAS** for exactly one blob (create + write, 5 minutes);
 2. the "browser" uploads with plain HTTP, and you prove what the SAS allows and refuses;
@@ -1414,7 +1414,7 @@ job 01a1ac7f-3c8c-770d-a4e8-b22d7c025256 sent twice (same MessageId)
 ```
 
 Read the SAS: `sr=b` (one blob), `sp=cw` (create + write), `st`/`se` (validity window, with a
-minute of clock-skew slack), and `sig` over all of it. Compare it with the `X-Amz-*` URL in cl-05.
+minute of clock-skew slack), and `sig` over all of it. Compare it with the `X-Amz-*` URL in *Object Storage & Direct Uploads (S3)*.
 Each line maps to a row of the SAS vs presigned table. The 400 is the missing `x-ms-blob-type`. The
 two 403s show that the signature covers the **blob name** and the **permissions**.
 
@@ -1440,7 +1440,7 @@ DLQ: poison reason=MaxDeliveryCountExceeded deliveries=4
   because it had the same `MessageId` inside the 5-minute window.
 - The poison message was abandoned three times. With `MaxDeliveryCount: 3` the broker moved it to
   the dead-letter sub-queue, with reason `MaxDeliveryCountExceeded`. That's the reaper + attempt
-  counter + DLQ you built by hand in cl-09, as a queue property. (`deliveries` may show 3 or 4
+  counter + DLQ you built by hand in the boss lesson, as a queue property. (`deliveries` may show 3 or 4
   depending on the emulator version, because reading from the DLQ counts as a delivery too.)
 
 **5. Prove the duplicate window and the lock.**
@@ -1540,7 +1540,7 @@ A: `x-ms-blob-type: BlockBlob`. Without it you get 400 MissingRequiredHeader.
 Q: Service SAS vs user delegation SAS?
 A: Service SAS is signed with the account key. User delegation SAS is signed with a key from Entra ID
    (managed identity), is capped at 7 days, and lets you disable shared key access.
-Q: Why can't the cl-09 transcoder run on Lambda?
+Q: Why can't the boss's transcoder run on Lambda?
 A: Lambda invocations are capped at 15 minutes. Long jobs go to ECS/Fargate, Batch or Container Apps.
 Q: Cognito access token audience quirk?
 A: No `aud` claim. Validate `token_use=access` and `client_id` instead of the audience.
@@ -1578,4 +1578,4 @@ A: Azurite (Blob), Service Bus and Event Hubs emulators, SeaweedFS (S3), Redis/V
 - **Secrets:** most disappear with managed identity. The rest live in Key Vault / Secrets Manager,
   loaded and cached at startup, with rotation in mind.
 - **Local dev is free:** Azurite, the Service Bus and Event Hubs emulators, SeaweedFS, Redis/Valkey,
-  Keycloak and the cl-08 stack cover almost everything. Set budget alerts before the first deploy.
+  Keycloak and the stack from the Observability lesson cover almost everything. Set budget alerts before the first deploy.

@@ -2,7 +2,7 @@
 id: db-01
 title: Thinking in Tables
 level: beginner
-minutes: 30
+minutes: 65
 xp: 100
 summary: Tables, rows, keys and relationships — how a relational database models the world, how your app talks to PostgreSQL, and a tour of the shop and studio databases.
 ---
@@ -15,6 +15,12 @@ This lesson builds the mental model you need before writing serious SQL: what a 
 what keys are for, how tables relate to each other, and how your C# or Node backend actually
 talks to PostgreSQL. Then we tour the two practice databases this track uses: the **shop** and
 the **studio**.
+
+:::tip title="Never written SQL before?"
+Start with the **SQL Syntax Primer** (the first lesson of this region). It covers the grammar
+this lesson takes for granted: statements and semicolons, the single-quote vs double-quote rule,
+`NULL`, comments, and how to read a PostgreSQL error message. Then come back here.
+:::
 
 ## Tables, rows and columns
 
@@ -39,7 +45,7 @@ Here is the `customers` table from the shop dataset (first few rows):
 
 Notice Noah's `city`: it is **NULL** — "unknown / not provided". NULL is not an empty string and
 not zero; it's the absence of a value. It has its own (sometimes surprising) rules that we'll
-study in lesson 3.
+study in the **Expressions, Functions & NULL** lesson.
 
 The table was created with DDL (data definition language) like this:
 
@@ -85,7 +91,7 @@ made of real-world data (an ISBN, a country code) is a **natural key**. Most app
 use surrogate keys and add a `UNIQUE` constraint on the natural identifier (like `email`).
 
 The practice datasets (shop and studio) insert their ids by hand, and so do some challenges
-(lesson 6 adds ledger rows with ids `15` and `16`). That's deliberate: fixed ids keep results
+(the **INSERT, UPDATE, DELETE & Upserts** lesson adds ledger rows with ids `15` and `16`). That's deliberate: fixed ids keep results
 predictable, so the grader can compare your answer row by row. In a real application you
 almost never pick ids yourself — you let the database generate them:
 
@@ -99,7 +105,7 @@ CREATE TABLE customers (
 --   id uuid PRIMARY KEY DEFAULT uuidv7()
 ```
 
-You'll still see the older `serial` in many codebases; it does the same job. Lesson 7 compares
+You'll still see the older `serial` in many codebases; it does the same job. The **Tables, Types & Constraints** lesson compares
 the options.
 
 Some tables use a **composite primary key** — several columns together. `order_items` has
@@ -116,7 +122,7 @@ CREATE TABLE orders (
   id           integer PRIMARY KEY,
   customer_id  integer NOT NULL REFERENCES customers(id),
   status       text    NOT NULL,
-  ordered_at   timestamp NOT NULL   -- legacy smell: should be timestamptz (lesson 3)
+  ordered_at   timestamp NOT NULL   -- legacy smell: should be timestamptz (see "Expressions, Functions & NULL")
 );
 ```
 
@@ -128,7 +134,7 @@ ERROR:  insert or update on table "orders" violates foreign key constraint "orde
 DETAIL:  Key (customer_id)=(999) is not present in table "customers".
 ```
  Try to delete a customer who still has orders and Postgres rejects that
-too (unless you declared `ON DELETE CASCADE` or similar — lesson 7). This is called
+too (unless you declared `ON DELETE CASCADE` or similar — the **Tables, Types & Constraints** lesson). This is called
 **referential integrity**: no dangling pointers, ever.
 
 Note the direction: the FK lives on the side that *points*. An order points at its customer,
@@ -147,7 +153,7 @@ no matter who writes. Validate in the app *for good error messages*, constrain i
 Keys let us describe how things relate. There are three shapes:
 
 **One-to-many (1:N)** — the most common. One customer has many orders; each order belongs to
-one customer. Modelled with a foreign key on the "many" side (`orders.customer_id`). Likewise
+one customer. Modeled with a foreign key on the "many" side (`orders.customer_id`). Likewise
 one category has many products (`products.category_id`).
 
 **Many-to-many (N:M)** — an order contains many products, and a product appears in many
@@ -161,7 +167,7 @@ customers 1 ──── N orders 1 ──── N order_items N ──── 1 
 ```
 
 **One-to-one (1:1)** — one row on each side, at most. Example: `users` and `user_settings`, or a
-`customers` row and a `customer_tax_details` row. Modelled with a foreign key that is *also*
+`customers` row and a `customer_tax_details` row. Modeled with a foreign key that is *also*
 `UNIQUE` (often the FK *is* the primary key of the second table). Use it to split rarely-used or
 sensitive columns into their own table. It's the rarest shape.
 
@@ -171,7 +177,7 @@ studio dataset uses the same trick for branching video clips (`clips.parent_clip
 
 :::quiz id=db-01-q1 xp=10
 In the shop, one product can be in many orders and one order can contain many products. How is
-that modelled?
+that modeled?
 - [ ] A `product_id` column on `orders`
 - [ ] An `order_id` column on `products`
 - [x] A junction table (`order_items`) with a foreign key to each side
@@ -202,7 +208,7 @@ happens when you run `DELETE FROM customers WHERE id = 1` while Ada still has or
 - [ ] Ada is deleted and her orders' `customer_id` becomes NULL
 - [x] The DELETE fails with a foreign key violation; nothing is deleted
 - [ ] Ada is deleted and her orders keep `customer_id = 1`
-> The default behaviour (`NO ACTION`) refuses any change that would leave an order pointing at a
+> The default behavior (`NO ACTION`) refuses any change that would leave an order pointing at a
 > customer that no longer exists. Deleting the orders too is what `ON DELETE CASCADE` would do and
 > setting NULL is `ON DELETE SET NULL` — both must be declared explicitly (and `SET NULL` would
 > fail here anyway, because `customer_id` is `NOT NULL`). Keeping a dangling `1` is exactly what
@@ -349,8 +355,8 @@ The shop has six tables:
   `active` flag.
 - `orders` — 18 orders; each has a `customer_id`, a `status` (`pending`, `paid`, `shipped`,
   `cancelled`) and an `ordered_at` timestamp. That column is a plain `timestamp` (no time zone),
-  which is a **legacy smell** we kept on purpose: you'll meet it in real codebases, lesson 3
-  shows what goes wrong with it and lesson 7 shows how to migrate it to `timestamptz`.
+  which is a **legacy smell** we kept on purpose: you'll meet it in real codebases, the **Expressions, Functions & NULL** lesson
+  shows what goes wrong with it and the **Tables, Types & Constraints** lesson shows how to migrate it to `timestamptz`.
 - `order_items` — the lines of each order: `order_id`, `product_id`, `quantity`, `unit_price`.
 - `employees` — the shop's staff, with `manager_id` pointing at another employee.
 
@@ -451,7 +457,7 @@ SELECT product_id, quantity, unit_price FROM order_items WHERE order_id = 6;
 :::
 
 Ids are useful, but humans want names. A **join** follows the foreign key and glues matching
-rows from two tables together. We'll study joins properly in lesson 5 — here's a preview:
+rows from two tables together. We'll study joins properly in the **JOINs** lesson — here's a preview:
 
 ```sql
 SELECT p.name, oi.quantity
@@ -530,10 +536,10 @@ code review, not after production slows down.
 
 ## A tour of the studio database
 
-Some challenges — one just below, and many from lesson 3 on — use a second dataset, the
+Some challenges — one just below, and many from the **Expressions, Functions & NULL** lesson on — use a second dataset, the
 **studio** (the editor shows `db: studio`). It's a small SaaS for **interactive, branching videos** — think "choose your own
 adventure" films — and it looks much more like the product you'll work on at a job than the shop
-does: users, permissions, background jobs and billing. Lesson 8 explains *why* it's designed this
+does: users, permissions, background jobs and billing. The **Data Modeling** lesson explains *why* it's designed this
 way; for now, just learn your way around.
 
 ```text
@@ -566,7 +572,7 @@ users 1 ──── N credit_ledger
   the sum of their rows.
 
 Two details to notice early. First, every point in time in the studio is a **`timestamptz`** — an
-absolute instant — unlike the shop's `ordered_at`; lesson 3 explains why that's the better
+absolute instant — unlike the shop's `ordered_at`; the **Expressions, Functions & NULL** lesson explains why that's the better
 choice. Second, the studio also uses hand-picked ids, for the same predictability reason as the
 shop.
 
@@ -610,7 +616,7 @@ Q: How do you model a many-to-many relationship?
 A: With a junction table holding a foreign key to each side, e.g. `order_items(order_id, product_id)`.
 Q: Where does the FK go in a one-to-many relationship?
 A: On the "many" side — `orders.customer_id`, `products.category_id`.
-Q: Default behaviour when deleting a row that other rows still reference?
+Q: Default behavior when deleting a row that other rows still reference?
 A: The DELETE fails with a foreign key violation (unless ON DELETE CASCADE / SET NULL was declared).
 Q: How do you model one-to-one?
 A: A foreign key that is also UNIQUE (often it is the second table's primary key).

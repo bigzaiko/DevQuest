@@ -2,7 +2,7 @@
 id: pro-05
 title: Teamwork, Agile & Code Review
 level: beginner
-minutes: 50
+minutes: 55
 xp: 120
 summary: Scrum and Kanban in practice, user stories and acceptance criteria, estimation, standups, PR descriptions, code review etiquette, definition of done, on-call, SLOs and postmortems.
 ---

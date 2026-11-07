@@ -12,6 +12,8 @@ small red box labelled **Redis**. It holds the things that must be *fast* and ar
 *temporary*: cached API responses, login sessions, rate-limit counters, "who is online" sets,
 leaderboards, job queues, distributed locks. This lesson builds the mental model you need before
 using it from .NET in **Caching with Redis in .NET** and as a queue/lock in **Redis as Queue, Bus and Lock**.
+If you haven't yet seen where Redis sits next to the broker, object storage, identity and
+observability boxes, skim **Cloud-Native Primer: The Big Picture** first.
 
 ## What Redis actually is
 

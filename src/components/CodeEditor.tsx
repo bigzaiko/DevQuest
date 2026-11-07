@@ -6,6 +6,7 @@ import { indentWithTab } from '@codemirror/commands'
 import { javascript } from '@codemirror/lang-javascript'
 import { sql, PostgreSQL } from '@codemirror/lang-sql'
 import { oneDark } from '@codemirror/theme-one-dark'
+import { normalizeQuotes } from '../engine/quotes.ts'
 
 export interface CodeEditorProps {
   value: string
@@ -50,6 +51,19 @@ export function CodeEditor({ value, onChange, lang, onRun, readOnly = false, min
             '.cm-activeLine, .cm-activeLineGutter': { backgroundColor: 'rgba(255,255,255,0.035)' },
             '&.cm-focused .cm-cursor': { borderLeftColor: '#ff8a3d' },
             '&.cm-focused .cm-selectionBackground, .cm-selectionBackground': { backgroundColor: 'rgba(255,90,44,0.25) !important' },
+          }),
+          // German keyboard / autocorrect: turn ´ ’ “ ” „ … into real ' and " as you type or paste
+          EditorState.transactionFilter.of((tr) => {
+            if (!tr.docChanged || !tr.isUserEvent('input') && !tr.isUserEvent('paste')) return tr
+            let changed = false
+            const specs: { from: number; to: number; insert: string }[] = []
+            tr.changes.iterChanges((fromA, toA, _fb, _tb, inserted) => {
+              const t = inserted.toString()
+              const n = normalizeQuotes(t)
+              if (n !== t) changed = true
+              specs.push({ from: fromA, to: toA, insert: n })
+            })
+            return changed ? [{ changes: specs, selection: tr.selection, scrollIntoView: tr.scrollIntoView, userEvent: 'input' }] : tr
           }),
           EditorView.updateListener.of((u) => { if (u.docChanged) changeRef.current?.(u.state.doc.toString()) }),
         ],

@@ -2,7 +2,7 @@
 id: pro-06
 title: Clean Code & Design Patterns
 level: intermediate
-minutes: 75
+minutes: 80
 xp: 200
 summary: Naming, small functions, SOLID in C# and TypeScript, DRY vs WET, and the six patterns you'll actually meet — plus when they're over-engineering.
 ---

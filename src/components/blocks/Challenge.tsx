@@ -1,3 +1,4 @@
+import { normalizeQuotes } from '../../engine/quotes.ts'
 import { useEffect, useRef, useState } from 'react'
 import type { ChallengeBlock } from '../../engine/parse.ts'
 import type { Verdict } from '../../runners/execute.ts'
@@ -31,7 +32,7 @@ export function Challenge({ b }: { b: ChallengeBlock }) {
       if (e.source !== frame.current?.contentWindow || e.data?.source !== 'devquest-sandbox') return
       if (e.data.type === 'ready') {
         setFrameReady(true)
-        if (b.preview && b.mode === 'code') frame.current?.contentWindow?.postMessage({ source: 'devquest-host', type: 'preview', code: b.setup + '\n' + codeRef.current, preview: b.preview }, '*')
+        if (b.preview && b.mode === 'code') frame.current?.contentWindow?.postMessage({ source: 'devquest-host', type: 'preview', code: (b.setup ? b.setup + '\n' : '') + codeRef.current, preview: b.preview }, '*')
       }
       if (e.data.type === 'height') setFrameH(Math.min(520, Math.max(80, e.data.height)))
     }
@@ -46,10 +47,10 @@ export function Challenge({ b }: { b: ChallengeBlock }) {
     let v: Verdict
     if (b.react) {
       if (!frame.current || !frameReady) { setRunning(false); return }
-      v = await runInFrame(frame.current, b, code)
+      v = await runInFrame(frame.current, b, normalizeQuotes(code))
       if (v.error?.startsWith('Timed out')) { setFrameReady(false); setFrameKey((k) => k + 1) }
     } else {
-      v = await runInWorker(b, code)
+      v = await runInWorker(b, normalizeQuotes(code))
     }
     setVerdict(v)
     setRunning(false)

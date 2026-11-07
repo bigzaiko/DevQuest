@@ -2,7 +2,7 @@
 id: ops-01
 title: Containers, Explained
 level: beginner
-minutes: 40
+minutes: 55
 xp: 100
 summary: What problem containers solve, how they differ from VMs, and what an image really is — layers, namespaces, cgroups, registries and OCI.
 ---

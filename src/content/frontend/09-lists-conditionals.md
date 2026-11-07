@@ -2,7 +2,7 @@
 id: fe-09
 title: Lists, Keys & Conditional Rendering
 level: beginner
-minutes: 40
+minutes: 55
 xp: 130
 summary: Rendering arrays with map, what keys really do (and how index keys corrupt state), conditional rendering patterns, the `&&` zero trap, and good empty states.
 ---

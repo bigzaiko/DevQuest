@@ -2,7 +2,7 @@
 id: fe-23
 title: End-to-End Testing with Playwright
 level: advanced
-minutes: 45
+minutes: 55
 xp: 190
 summary: Real browsers, real user flows — locators, auto-waiting, fixtures, auth reuse, network mocking, traces, CI and an axe accessibility gate.
 ---

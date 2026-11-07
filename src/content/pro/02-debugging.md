@@ -2,7 +2,7 @@
 id: pro-04
 title: Debugging Like a Pro
 level: intermediate
-minutes: 55
+minutes: 60
 xp: 150
 summary: A systematic method, browser DevTools, React DevTools, .NET debugging in VS Code and Rider, stack traces, correlation ids and git bisect.
 ---

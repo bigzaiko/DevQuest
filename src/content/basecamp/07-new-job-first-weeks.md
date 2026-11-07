@@ -2,7 +2,7 @@
 id: bc-07
 title: Your First Weeks at a New Job
 level: beginner
-minutes: 30
+minutes: 45
 xp: 100
 summary: How to read an unfamiliar codebase, set up a painful local environment, ask good questions, ship a first ticket and keep a brag doc.
 ---

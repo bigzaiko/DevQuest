@@ -1,79 +1,36 @@
 # DevQuest — project status
 
-_Last updated: 2026-11-05._
+_Last updated: 2026-11-07._ Live: **https://bigzaiko.github.io/DevQuest/** · Repo: https://github.com/bigzaiko/DevQuest
 
-Live site (after the first push + Pages setup): **https://bigzaiko.github.io/DevQuest/**
-Repo: **https://github.com/bigzaiko/DevQuest** (public, `main`)
+## State: complete ✅
 
----
+Nothing open. All regions are written, reviewed, fixed and validated.
 
-## TL;DR
-
-| Area | State |
-|---|---|
-| Site (React 19 + Vite 8 + TS) | ✅ done — map, lessons, XP/levels/ranks, streaks, achievements, search (Ctrl/⌘ K), SQL playground, dark/light, phone + tablet layouts |
-| In-browser runners | ✅ JS/TS (Web Worker), React (iframe sandbox + live preview), write-the-tests with mutants, SQL on PostgreSQL 18 (PGlite) |
-| Skill checks | ✅ 20-question exam per region + 40-question Final Exam; per-level score, estimated level, study list |
-| Progress | ✅ saved in `localStorage` (no login/server); Export/Import JSON on the Progress page |
-| Content | 🟡 ~107 lessons written, more being written + reviewed (see below) |
-| Content validator | ✅ `npm run validate` runs every challenge solution against its tests |
-| Deploy | 🟡 workflow ready (`.github/workflows/deploy.yml`); needs first commit/push + Settings → Pages → Source: GitHub Actions |
-| Docs | ✅ `README.md`, `AGENTS.md` (+ `CLAUDE.md`), `docs/CONTENT_FORMAT.md`, `docs/DESIGN.md`, this file |
-
-## Content by region (validated 2026-11-05, every challenge solution passes)
-
-| Region | Lessons | Quizzes | Code challenges | SQL challenges | Labs | Time (est.) |
+| Region | Lessons | Quizzes | Code | SQL | Labs | Time |
 |---|---|---|---|---|---|---|
-| ⛺ Basecamp | 8 | 52 | 5 | 1 | 8 | ~6h |
-| ⚛️ Frontend | 30 | 179 | 118 | 0 | 16 | ~31h |
-| 🐘 Database | 19 | 129 | 0 | 175 | 1 | ~16h |
-| 🛡️ Backend | 22 | 208 | 12 | 4 | 25 | ~25h |
-| 🐳 Containers & Kubernetes | 19 | 149 | 20 | 0 | 29 | ~25h |
-| 🧰 Cloud-Native Toolkit | 10 | 88 | 27 | 0 | 11 | ~37h |
-| 🧭 Pro Skills | 12 | 95 | 24 | 1 | 12 | ~15h |
-| 🐉 Capstone: BranchStory | 10 | 56 | 12 | 8 | 32 | ~47h |
-| **Total** | **130** | **956** | **218** | **189** | **134** | **~200h** |
+| ⛺ Basecamp | 9 | 64 | 8 | 2 | 9 | ~8h |
+| ⚛️ Frontend | 31 | 193 | 123 | 0 | 17 | ~39h |
+| 🐘 Database | 21 | 149 | 3 | 194 | 3 | ~28h |
+| 🛡️ Backend | 23 | 221 | 14 | 4 | 26 | ~26h |
+| 🐳 Containers & Kubernetes | 20 | 157 | 23 | 0 | 30 | ~27h |
+| 🧰 Cloud-Native Toolkit | 11 | 96 | 29 | 0 | 12 | ~38h |
+| 🧭 Pro Skills | 12 | 95 | 24 | 1 | 12 | ~16h |
+| 🐉 Capstone: BranchStory | 11 | 65 | 13 | 9 | 37 | ~53h |
+| 🖥️ Desktop & Mobile .NET | 12 | 105 | 28 | 0 | 14 | ~22h |
+| **Total** | **150** | **1145** | **265** | **210** | **160** | **~258h** |
 
-Quality passes done: every lesson got reviewer → blind quiz verifier → fixer, plus a coherence critic
-per region whose contradictions/gaps were fixed and audited. Many .NET labs were built and run on the real
-.NET 10 SDK (incl. Testcontainers + Postgres 18).
+## Quality
 
-## Not finished (stopped to save usage — safe to resume later)
+- Every lesson: writer → independent reviewer (fixes in place) → blind quiz verifier → fixer.
+- Every region: coherence critic (progression, gaps, contradictions) → fixer → independent audit.
+- `npm run validate` runs every challenge solution against its tests (starter must fail) and every SQL solution on PostgreSQL 18 (PGlite); CI blocks the deploy on failure.
+- Many labs were built and run for real: .NET 10 labs (incl. Testcontainers + postgres:18), the whole Capstone app rebuilt from lessons 01–11 (all tests green, container images built), Redis/Postgres labs against real containers.
 
-- Round 4 (Capstone + Cloud): coherence fixes may be partial; Capstone lab code for lessons 08–10 was
-  **not** build-verified; new lesson "v2 Without Downtime" (cap-11) not written.
-- Round 5 (Database): new lesson "Postgres From Your Code" not written; db coherence fixes (GIN dedupe,
-  replicas/CDC, on-call section, pg_trgm/pgvector) may be partial.
-- Time estimates (`minutes`) are still low in some lessons.
-- Desktop & Mobile .NET region (XAML / Avalonia / MAUI) — coming soon.
+## Known limitations (by design)
 
-## Next steps
+- C#, Docker, Kubernetes, Avalonia/MAUI run in your local labs, not in the browser.
+- Labs needing a real cloud account, a kind cluster run-through, or MAUI builds (not possible on Linux) are written carefully but not machine-run end to end.
+- PGlite is one connection: locking/isolation is taught with timelines + quizzes.
+- Progress lives in your browser — use Progress → Export to back it up.
 
-1. Push to `main` (GitHub Desktop: Add local repository → this folder → Push origin).
-2. GitHub → **Settings → Pages → Source: GitHub Actions**; wait for the green Actions run.
-3. Open https://bigzaiko.github.io/DevQuest/
-4. Later: finish the items above (see `AGENTS.md` for how to add/review lessons).
-
-## Known limitations
-
-- **C# can't run in the browser**: backend lessons use quizzes, flashcards and local labs with xUnit tests to paste in.
-- **PGlite is one connection / one implicit transaction per run**: locking, isolation anomalies,
-  `CREATE INDEX CONCURRENTLY`, `VACUUM` in a batch etc. are taught with timelines + quizzes, not live.
-  Only the `plpgsql` extension is available; `pg_stat_*` counters don't update.
-- **TypeScript types are stripped, not checked** in challenges — tests check runtime behaviour.
-- **React challenges**: only `react` can be imported; no `createPortal` / `<dialog>.showModal()`.
-- **Labs aren't machine-verified** (Docker/K8s/.NET run on your machine) — commands were reviewed, not executed.
-  Version-sensitive bits (GitHub Actions major versions, Helm chart value keys, KEDA trigger params) carry a "check the docs" note.
-- **Progress is per browser**: clearing site data deletes it — use Export/Import to back up or move devices.
-
-## Where things live
-
-| What | Where |
-|---|---|
-| Lessons | `src/content/<region>/NN-slug.md` |
-| Regions / map / route | `src/content/tracks.ts` |
-| SQL datasets | `src/content/datasets/{shop,studio}.sql` |
-| Lesson format | `docs/CONTENT_FORMAT.md` |
-| Design rules | `docs/DESIGN.md` |
-| Contributor/agent guide | `AGENTS.md` |
-| Deploy pipeline | `.github/workflows/deploy.yml` |
+See `AGENTS.md` for how to add lessons or regions.

@@ -56,7 +56,7 @@ window.addEventListener('message', async (e: MessageEvent) => {
       verdict = { pass: false, results: [], logs: [], error: String((err as Error)?.message ?? err) }
     }
     kit.cleanup()
-    if (preview && ch.mode === 'code') renderPreview(ch.setup + '\n' + code, preview)
+    if (preview && ch.mode === 'code') renderPreview((ch.setup ? ch.setup + '\n' : '') + code, preview)
     parent.postMessage({ source: 'devquest-sandbox', type: 'result', id, verdict }, '*')
     setTimeout(postHeight, 50)
   } else if (d.type === 'preview') {

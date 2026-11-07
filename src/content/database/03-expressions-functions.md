@@ -2,7 +2,7 @@
 id: db-03
 title: Expressions, Functions & NULL
 level: beginner
-minutes: 45
+minutes: 90
 xp: 130
 summary: Compute new values in SQL — arithmetic, strings, dates, intervals and time zones, CASE, COALESCE, casts — and master three-valued NULL logic.
 ---
@@ -285,7 +285,7 @@ SELECT price::integer FROM products;  -- rounds 29.99 → 30
 SELECT ordered_at::date FROM orders;  -- drop the time part
 ```
 
-Why cast at all? Because the type decides the behaviour: `/` on integers truncates, `'10' < '9'`
+Why cast at all? Because the type decides the behavior: `/` on integers truncates, `'10' < '9'`
 is **true** for text (compared character by character) but false for numbers, and a text
 `'2025-03-01'` can't be used in date arithmetic.
 
@@ -341,7 +341,7 @@ unreliable. Postgres has real temporal types instead:
 :::warn title="The shop's `ordered_at` is a legacy smell"
 `shop.orders.ordered_at` is a plain `timestamp`, so a value like `2025-01-05 10:12:00` doesn't say
 *where* it was 10:12. London? The server's zone? A laptop in Berlin that wrote `DateTime.Now`?
-Once rows from different places are mixed, nobody can untangle them. Lesson 7's rule — use
+Once rows from different places are mixed, nobody can untangle them. The **Tables, Types & Constraints** lesson's rule — use
 `timestamptz` for points in time — is right, and the shop breaks it on purpose: you *will* meet
 columns like this in older schemas. In this track, read the shop's values as UTC. The real fix is
 a migration that states the zone the values were written in, once:

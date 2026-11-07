@@ -2,7 +2,7 @@
 id: fe-15
 title: Server State with TanStack Query
 level: intermediate
-minutes: 70
+minutes: 75
 xp: 180
 summary: Server state is a cache, not state — queries, query keys, staleTime, mutations, invalidation and optimistic updates with TanStack Query.
 ---

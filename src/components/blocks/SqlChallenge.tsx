@@ -1,3 +1,4 @@
+import { normalizeQuotes } from '../../engine/quotes.ts'
 import { useEffect, useState } from 'react'
 import type { SqlBlock } from '../../engine/parse.ts'
 import type { SqlResult, SqlRun } from '../../runners/sql.ts'
@@ -75,7 +76,7 @@ export function SqlChallenge({ b }: { b: SqlBlock }) {
     setRunning(true)
     countRun('sql')
     try {
-      const g = (await gradeSqlChallenge(b, code)) as Grade
+      const g = (await gradeSqlChallenge(b, normalizeQuotes(code))) as Grade
       setGrade(g)
       if (g.pass) solveExercise(b.id, b.xp, b.title)
       else missExercise(b.id)

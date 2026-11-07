@@ -2,7 +2,7 @@
 id: pro-10
 title: Testing Strategy for a Full-Stack Team
 level: intermediate
-minutes: 75
+minutes: 80
 xp: 150
 summary: Decide what to test and where in a React + ASP.NET Core + Postgres app — pyramid vs trophy vs honeycomb, contract tests, what (never) to mock, test data builders, flaky tests, coverage vs mutation testing, tests in PR review and a feature test plan.
 ---

@@ -2,7 +2,7 @@
 id: db-12
 title: Transactions, Isolation & Locking
 level: advanced
-minutes: 45
+minutes: 65
 xp: 200
 summary: ACID, savepoints, MVCC and isolation levels, row locks and deadlocks — and the version-column pattern that turns a lost update into a clean 409 Conflict.
 ---
@@ -37,7 +37,7 @@ promise a transaction makes:
 | **D**urability | Committed = survives a crash | Postgres writes the change to the **WAL** (write-ahead log) and flushes it before `COMMIT` returns. |
 
 Atomicity and durability are mostly free: Postgres gives them to you. Consistency is what your
-constraints (lesson 7) encode. **Isolation is where developers get burned**, because the default
+constraints (the **Tables, Types & Constraints** lesson) encode. **Isolation is where developers get burned**, because the default
 level allows several anomalies that look impossible until you draw them on a timeline.
 
 ## BEGIN, COMMIT, ROLLBACK
@@ -481,7 +481,7 @@ RETURNING clip_id, views;
 :::
 
 :::info title="Atomic is not the same as idempotent"
-Lesson 6 advised upserts that set **absolute** values rather than `+ 1`, and here we insisted on
+The **INSERT, UPDATE, DELETE & Upserts** lesson advised upserts that set **absolute** values rather than `+ 1`, and here we insisted on
 adding. Both hold, because they protect against different failures. Adding inside the statement
 is **atomic**: concurrent requests can't lose each other's views, which is the lost-update
 problem this section is about. But it is **not idempotent**: if the same batch is delivered twice

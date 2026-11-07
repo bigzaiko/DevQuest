@@ -2,7 +2,7 @@
 id: fe-12
 title: Custom Hooks
 level: intermediate
-minutes: 50
+minutes: 60
 xp: 160
 summary: The rules of hooks and why they exist, extracting reusable logic into custom hooks (useToggle, useLocalStorage, useDebounce, useFetch), and testing hooks through components.
 ---

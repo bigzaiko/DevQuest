@@ -2,7 +2,7 @@
 id: fe-05
 title: Anatomy of a Vite Project
 level: beginner
-minutes: 40
+minutes: 45
 xp: 130
 summary: What Vite does in dev and in build, the files of a React + TS project, HMR, env variables and modes, base paths, aliases and proxying to your ASP.NET API.
 ---

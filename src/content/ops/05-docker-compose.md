@@ -2,7 +2,7 @@
 id: ops-05
 title: Docker Compose for the Full Stack
 level: intermediate
-minutes: 50
+minutes: 55
 xp: 150
 summary: One compose.yaml for Postgres + Redis + ASP.NET Core API + React frontend — healthchecks, depends_on conditions, env files, profiles, overrides and watch mode.
 ---

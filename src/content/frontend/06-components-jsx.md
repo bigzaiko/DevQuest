@@ -2,7 +2,7 @@
 id: fe-06
 title: Components & JSX
 level: beginner
-minutes: 35
+minutes: 55
 xp: 120
 summary: What JSX compiles to, its rules, components as plain functions, expressions, fragments, className/style, and React's render → commit model.
 ---

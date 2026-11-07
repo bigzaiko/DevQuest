@@ -2,7 +2,7 @@
 id: fe-27
 title: Semantic HTML & CSS Layout
 level: beginner
-minutes: 75
+minutes: 95
 xp: 150
 summary: Landmarks, headings, buttons vs links and labelled forms, then the box model, flexbox, grid, positioning, units, responsive and modern CSS, and the layout recipes you'll build every week.
 ---

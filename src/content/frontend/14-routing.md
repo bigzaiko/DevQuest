@@ -2,7 +2,7 @@
 id: fe-14
 title: Routing with React Router
 level: intermediate
-minutes: 55
+minutes: 65
 xp: 170
 summary: URLs as state — routes, nested layouts, params, loaders and actions, navigation, protected routes, 404s, and the GitHub Pages hash-vs-browser routing trap.
 ---

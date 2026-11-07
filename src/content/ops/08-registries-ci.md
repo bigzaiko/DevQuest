@@ -2,7 +2,7 @@
 id: ops-08
 title: Registries, Tags and CI Pipelines
 level: advanced
-minutes: 45
+minutes: 50
 xp: 180
 summary: Docker Hub vs GHCR, a tagging strategy that survives production, multi-arch builds with buildx, CI build caches, a complete GitHub Actions workflow to GHCR — and promoting one digest through environments.
 ---

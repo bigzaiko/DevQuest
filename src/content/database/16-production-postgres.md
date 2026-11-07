@@ -2,9 +2,9 @@
 id: db-16
 title: Production PostgreSQL
 level: expert
-minutes: 45
+minutes: 90
 xp: 250
-summary: Ship schema changes without downtime, lock down access with roles and row-level security, back up with WAL archiving and PITR, pool connections, and keep VACUUM happy.
+summary: Ship schema changes without downtime, lock down access with roles and row-level security, back up with WAL archiving and PITR, pool connections, keep VACUUM happy, live with replicas, failover and CDC, and diagnose a slow or locked database on call.
 ---
 
 Writing correct SQL is half the job. The other half is keeping a database **alive in production**:
@@ -14,7 +14,9 @@ read another tenant's data, being able to restore *last Tuesday at 14:29* after 
 
 This lesson is the operational toolkit a senior full-stack developer is expected to know. The
 challenges run on the **studio** dataset (a multi-tenant branching-video SaaS) and on small custom
-tables.
+tables. Two neighboring lessons cover the rest: **Postgres From Your Code** (parameters,
+transactions, retries and integration tests from C# and Node) and **Multi-Tenancy, Partitioning &
+Temporal Data** (tenancy models, history tables and declarative partitioning).
 
 :::info title="What the browser can and can't show"
 The in-browser Postgres runs your SQL as a **single transaction on a single connection**. Real lock
@@ -306,12 +308,11 @@ FROM payments p ORDER BY p.id;
 
 ### Backfilling in batches
 
-`UPDATE events SET user_id = (payload->>'uid')::int;` on 200 million rows is one giant transaction:
-it locks every row it touches for its whole duration (blocking concurrent updates), generates a WAL
-storm that makes replicas lag, and leaves 200 million dead row versions for VACUUM. If it fails after
-an hour, it all rolls back.
-
-Batch it instead — small transactions of a few thousand rows, each committed, with a short pause:
+`UPDATE events SET user_id = (payload->>'uid')::int;` on 200 million rows is one giant transaction,
+with all the problems from "Big deletes and updates: do them in chunks" in **Performance Tuning**:
+long row locks, a WAL storm that makes replicas lag, 200 million dead row versions, and a rollback
+of everything if it fails after an hour. In a migration it is the **migrate** step of expand /
+contract, so use the same chunking loop:
 
 ```sql
 -- run repeatedly (from a script, a background job, or a PROCEDURE with COMMIT) until 0 rows
@@ -325,8 +326,9 @@ WHERE id IN (
 );
 ```
 
-The `WHERE user_id IS NULL` makes it **resumable**: a crash just means the next run continues where
-the last one stopped. Ordering by the primary key keeps each batch's index access tidy.
+Here the "rows that still need work" filter is `WHERE user_id IS NULL`, which makes the backfill
+resumable. Run it from the migration tool's data step or a background job, not from inside the
+schema migration's transaction, so each batch really commits.
 
 :::sql id=db-16-sql4 db=empty xp=50
 title: One batch at a time
@@ -531,6 +533,9 @@ ORDER BY r.role, t.tbl;
 :::
 
 ## Row-level security for multi-tenant SaaS
+
+(This section covers RLS itself. Choosing between shared tables, schema-per-tenant and
+database-per-tenant, and tenant-safe keys, is in **Multi-Tenancy, Partitioning & Temporal Data**.)
 
 Most SaaS apps are **multi-tenant**: one database, many customers, every table carrying a
 `tenant_id` (or `owner_id`, `org_id`). The scariest bug in such a system is a missing
@@ -832,7 +837,9 @@ server connections, so anything that lives in the *session* is unreliable:
 - `SET app.tenant_id = '1'` (session-level) leaks to whoever gets that connection next → use
   **`SET LOCAL`** / `set_config(…, true)` inside the transaction.
 - `LISTEN`/`NOTIFY` listeners, session advisory locks (`pg_advisory_lock`), temp tables, `WITH HOLD`
-  cursors don't work — use a direct (unpooled) connection for listeners, and `pg_advisory_xact_lock`.
+  cursors don't work. Use a direct (unpooled) connection for listeners and for session advisory
+  locks (the singleton-job trade-off is in **Job Queues in PostgreSQL**), or
+  `pg_advisory_xact_lock` when the work fits in one short transaction.
 - Prepared statements: supported since PgBouncer 1.21 with `max_prepared_statements` set; on older
   versions disable them in the driver.
 
@@ -909,6 +916,422 @@ regularly but `n_dead_tup` stays high. Which is the most likely culprit?
 > would come straight back.
 :::
 
+## Replicas, failover and CDC
+
+Sooner or later the studio database stops being one server. The primary gets **streaming
+replicas** for failover and read scaling, and other systems (search, analytics, a data
+warehouse) want to hear about every change. Each step changes what your application can
+assume.
+
+### Streaming replicas and replication lag
+
+A **physical streaming replica** receives the primary's WAL over a replication connection and
+replays it, so it's a byte-for-byte copy that accepts only reads (`hot_standby`). By default
+replication is **asynchronous**: the primary commits, answers the client, and ships the WAL
+afterwards. A replica is therefore always slightly behind, usually milliseconds and sometimes
+seconds or minutes (a big batch update, a slow disk, a replica busy with a long report).
+
+```sql
+-- on the primary: how far behind is each replica?
+SELECT application_name, state, sync_state, write_lag, flush_lag, replay_lag
+FROM pg_stat_replication;
+
+-- on a replica: when was the last replayed transaction committed?
+SELECT now() - pg_last_xact_replay_timestamp() AS replica_delay;
+```
+
+Lag causes the classic **read-your-writes bug**. A user renames a project (write to the
+primary), the page reloads, the read goes to a replica that hasn't replayed the change yet, and
+the old title comes back. The user renames it again. Common fixes, from simplest:
+
+- **Read your own recent writes from the primary.** After a write, pin that user's reads to the
+  primary for a few seconds (a cookie or a flag in the session).
+- **Wait for the replica to catch up.** The app remembers the commit's position,
+  `pg_current_wal_lsn()` on the primary, and the replica read waits until
+  `pg_last_wal_replay_lsn()` has passed it.
+- **Synchronous replication** (`synchronous_standby_names`, `synchronous_commit = remote_apply`)
+  makes the primary wait until a replica has *applied* the commit. Reads are then consistent,
+  but every commit pays a network round trip, and the primary stalls if that replica goes away.
+  Most teams keep this for one standby that guards against data loss, not for read scaling.
+
+Send only reads that tolerate staleness to replicas: reports, search pages, exports. Anything
+inside a read-modify-write flow belongs on the primary.
+
+### What failover means for the app
+
+When the primary dies, an orchestrator (CloudNativePG, Patroni, or your managed service)
+**promotes** a replica and repoints the service name or DNS to it. From the application's point
+of view:
+
+- every open connection to the old primary breaks, and **in-flight transactions are rolled
+  back**. The app sees errors such as `57P01` (admin shutdown) or a dropped socket, and must
+  **retry the whole transaction**, not just the last statement. This is the same retry loop you
+  write for serialization failures (`40001`, see **Postgres From Your Code**), which only works
+  if the transaction is safe to run twice (idempotency keys, upserts).
+- with asynchronous replication, a transaction committed in the last instant before the crash may
+  **not** have reached the new primary. That is your RPO for failover. Synchronous replication
+  to at least one standby makes it zero.
+- the connection string must point at something that follows the primary: a Kubernetes service
+  such as CloudNativePG's `studio-db-rw`, a managed endpoint, or a multi-host string such as
+  `Host=db1,db2;Target Session Attributes=primary` (Npgsql) that tries each host until it finds
+  the writable one.
+- connection pools hold dead connections after a failover. Use short connection lifetimes or the
+  driver's pool-clearing on error, and expect a burst of reconnects.
+
+### Logical replication and change data capture
+
+Physical replication copies the **whole cluster** at the byte level, same major version only.
+**Logical replication** decodes the WAL into row changes (`INSERT` / `UPDATE` / `DELETE` per
+table) and sends them to a subscriber that can run a different major version, with a different
+set of tables and indexes:
+
+```sql
+-- on the source
+CREATE PUBLICATION studio_pub FOR TABLE projects, clips;
+-- on the target (another Postgres)
+CREATE SUBSCRIPTION studio_sub
+  CONNECTION 'host=old-db dbname=studio user=replicator'
+  PUBLICATION studio_pub;
+```
+
+It's used for major-version upgrades with near-zero downtime (see the next section), for moving
+between providers, and for feeding a reporting database.
+
+**Change data capture (CDC)** uses the same machinery to stream changes *out* of Postgres to
+other systems. **Debezium** (usually on Kafka Connect) creates a **logical replication slot**
+with the built-in `pgoutput` plugin and publishes every committed row change as an event: the
+search index updates, the warehouse loads, caches are invalidated. Nobody has to remember to
+call them from application code.
+
+:::warn title="A replication slot is a promise to keep WAL"
+A slot makes the primary keep every WAL segment its consumer hasn't confirmed. If the Debezium
+connector is down for a weekend, the primary's disk fills up with WAL, and a full disk takes
+the primary down. Alert on `pg_replication_slots` (`active`, and the WAL retained since
+`confirmed_flush_lsn`), set `max_slot_wal_keep_size` as a safety valve, and drop slots nobody
+uses. Slots also have to survive a failover: PostgreSQL 17+ can sync logical slots to standbys
+(`failover = true`), and CloudNativePG and managed services expose that as a setting.
+:::
+
+### The transactional outbox, step by step
+
+CDC on business tables has a catch: the events are shaped like your **schema**, not like your
+**domain**. Rename a column and every consumer breaks. And "project published" is a business
+event that doesn't map one-to-one to a row change. The **transactional outbox** (introduced in
+the **Job Queues in PostgreSQL** lesson) solves both problems:
+
+1. In the **same transaction** as the business change, insert an event row into an `outbox`
+   table: a stable topic, a key, and a payload you design as a public contract.
+2. A **relay** reads new outbox rows and publishes them to the broker (Kafka, RabbitMQ, a
+   webhook).
+3. Consumers receive **at-least-once** delivery and deduplicate by event id.
+
+```sql
+CREATE TABLE outbox (
+  id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  topic        text        NOT NULL,          -- 'project.published'
+  key          text        NOT NULL,          -- partition key for the broker, e.g. the project id
+  payload      jsonb       NOT NULL,          -- the public contract, versioned
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  published_at timestamptz                    -- set by the relay
+);
+CREATE INDEX outbox_unpublished_idx ON outbox (id) WHERE published_at IS NULL;
+```
+
+Because the event and the change commit together, you can never have one without the other.
+Either the project is published *and* the event exists, or neither happened. Compare that with
+"commit, then call Kafka": if the process dies between the two, the event is lost, and if Kafka
+is down, the request fails after the data has already changed.
+
+There are two ways to run the relay:
+
+- **Polling:** a worker runs a `SKIP LOCKED` claim on unpublished rows (the Job Queues pattern),
+  publishes the batch, then sets `published_at`. If it crashes after publishing but before the
+  update, the batch is sent again. That's the at-least-once part.
+- **CDC on the outbox table:** Debezium tails only `outbox` through a slot, and its *outbox
+  event router* turns each insert into a message on the topic named in the row. There's no
+  polling, and the events arrive in commit order.
+
+Either way, delete or archive published rows on a schedule, as you would with finished jobs.
+
+:::sql id=db-16-sql8 db=studio xp=60
+title: Publish a project, with its event
+Publishing a project must also emit a `project.published` event for the search indexer. Using
+the `outbox` table from the setup, publish **project 2** at *now* = `'2025-07-10 17:00+00'` so
+that the change and the event commit **together**:
+
+- set `published = true`, increment `version` and set `updated_at` = now, but only if the
+  project isn't published yet,
+- insert one outbox row: `topic = 'project.published'`, `key` = the project id as text,
+  `payload` = `{"project_id": …, "version": <the new version>, "owner_id": …}`, `created_at` =
+  now. Leave `published_at` NULL, because that's the relay's job.
+
+If the project was already published, nothing may be inserted.
+
+The grader checks project 2's `published` and `version` and every outbox row.
+
+hint: A data-modifying CTE: `WITH pub AS (UPDATE projects SET … WHERE id = 2 AND NOT published RETURNING id, version, owner_id) INSERT INTO outbox … SELECT … FROM pub;`
+hint: `RETURNING` gives you the **new** `version`, after the increment.
+hint: `jsonb_build_object('project_id', id, 'version', version, 'owner_id', owner_id)`
+
+```sql setup
+CREATE TABLE outbox (
+  id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  topic        text        NOT NULL,
+  key          text        NOT NULL,
+  payload      jsonb       NOT NULL,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  published_at timestamptz
+);
+```
+
+```sql starter
+UPDATE projects SET published = true WHERE id = 2;
+```
+
+```sql solution
+WITH pub AS (
+  UPDATE projects
+  SET published = true, version = version + 1, updated_at = '2025-07-10 17:00+00'
+  WHERE id = 2 AND NOT published
+  RETURNING id, version, owner_id
+)
+INSERT INTO outbox (topic, key, payload, created_at)
+SELECT 'project.published', id::text,
+       jsonb_build_object('project_id', id, 'version', version, 'owner_id', owner_id),
+       '2025-07-10 17:00+00'
+FROM pub;
+```
+
+```sql check
+SELECT 'project 2 published=' || published || ' version=' || version AS state
+FROM projects WHERE id = 2
+UNION ALL
+SELECT 'outbox ' || topic || ' key=' || key || ' ' || payload::text
+       || ' at ' || to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI')
+       || ' published=' || coalesce(published_at::text, 'no')
+FROM outbox;
+```
+:::
+
+:::quiz id=db-16-q7 xp=15
+The studio adds two streaming replicas, routes all `GET` requests to them, and streams changes
+to the search index with a Debezium connector. Which of these problems should the team
+**expect**? Select all that apply.
+
+- [x] A user saves a project title and the next page load shows the old title for a moment
+- [x] After a failover, requests that were mid-transaction fail and must be retried by the app
+- [ ] Replicas reject `SELECT … FOR UPDATE`, so the job-queue claim keeps working only because it's a `POST`, which proves routing by HTTP verb is safe
+- [x] A Debezium connector that is down for days makes the primary's disk fill with retained WAL
+- [ ] Logical replication slots are copied to the replicas automatically, so CDC never notices a failover
+> Asynchronous replicas lag, so reads after a write can be stale (read-your-writes). Fix it by
+> pinning recent writers to the primary or waiting for the LSN. A failover breaks connections
+> and rolls back in-flight transactions, so the app needs a retry loop around whole
+> transactions. A replication slot keeps WAL until its consumer confirms it. Routing "by HTTP
+> verb" is fragile: plenty of `GET`s must read fresh data, and replicas reject *every* write
+> and row lock, not just this one. Logical slots are not copied to standbys unless you enable
+> slot synchronization (PG 17+ `failover` slots, or your operator's equivalent).
+:::
+
+## On call: diagnosing a slow or locked database
+
+Sooner or later you get paged: *"the API is timing out"*. The database is the first suspect, and
+you want answers in minutes. A good order of work:
+
+1. **Is it the database?** Look at the connection count, CPU and I/O on the managed-service
+   dashboard, and at `pg_stat_activity`.
+2. **Is something blocked?** Find who is waiting and who holds the lock.
+3. **Is something slow?** Find the expensive statements and their plans.
+4. **Stop the bleeding**, then fix the cause in code or schema.
+
+### What is running right now
+
+```sql
+SELECT pid, usename, application_name, state,
+       now() - xact_start  AS xact_age,
+       now() - query_start AS query_age,
+       wait_event_type, wait_event,
+       left(query, 80) AS query
+FROM pg_stat_activity
+WHERE backend_type = 'client backend' AND state <> 'idle'
+ORDER BY xact_start NULLS LAST;
+```
+
+Read it like this. `state = 'active'` with `wait_event_type = 'Lock'` means the session is
+**blocked**. `idle in transaction` with a large `xact_age` is a session holding locks and
+blocking VACUUM while doing nothing, usually an app that forgot to commit (the **Transactions,
+Isolation & Locking** lesson). Hundreds of `active` sessions all running the same query point
+to a missing index or a plan that flipped. Set `application_name` in every connection string
+(`Application Name=studio-api` in Npgsql) so this view tells you *which service* is guilty.
+
+### Who blocks whom: `pg_blocking_pids` and the lock tree
+
+`pg_blocking_pids(pid)` returns the array of sessions that block `pid`. Joined with
+`pg_stat_activity`, it's the fastest way to find the culprit:
+
+```sql
+SELECT pid,
+       pg_blocking_pids(pid) AS blocked_by,
+       state, now() - xact_start AS xact_age, left(query, 60) AS query
+FROM pg_stat_activity
+WHERE cardinality(pg_blocking_pids(pid)) > 0
+   OR pid IN (SELECT unnest(pg_blocking_pids(pid)) FROM pg_stat_activity);
+```
+
+Blocking forms a **tree**. The `ALTER TABLE` from the lock-queue timeline above waits for an old
+report, and a hundred API queries wait for the `ALTER`. Killing one of the hundred leaves helps
+nothing. You want the **root**: the session that blocks others but isn't blocked itself. Then
+decide:
+
+```sql
+SELECT pg_cancel_backend(4711);     -- cancel its current query (gentle; the session stays)
+SELECT pg_terminate_backend(4711);  -- close the whole connection, rolling back its transaction
+```
+
+`pg_cancel_backend` doesn't help an `idle in transaction` session, because it isn't running a
+query. Only terminating it ends the transaction. Write down what you killed and why: the root
+blocker is the bug to fix after the incident.
+
+:::sql id=db-16-sql9 db=empty ordered=true xp=60
+title: Find the root blockers
+During an incident you saved a snapshot of `pg_stat_activity` with `pg_blocking_pids(pid)` into
+the table `activity` (see the setup). `blocked_by` is the array of pids that block each session;
+an empty array means "not waiting".
+
+Return the **root blockers**: sessions that are not blocked themselves but block at least one
+other session. For each one, return `pid`, `state` and `waiting`, the number of **distinct**
+sessions waiting on it **directly or indirectly**. Order by `waiting` descending, then `pid`.
+
+hint: Start a `WITH RECURSIVE` from the roots: `cardinality(blocked_by) = 0` and some other row has `pid = ANY(blocked_by)`.
+hint: Recursive step: `JOIN activity w ON t.pid = ANY(w.blocked_by)`, carrying the root along.
+hint: Session 105 waits on both 101 and 102. Count it once: `UNION` (not `UNION ALL`) or `count(DISTINCT …)`.
+
+```sql setup
+CREATE TABLE activity (
+  pid        int PRIMARY KEY,
+  state      text     NOT NULL,
+  blocked_by int[]    NOT NULL,
+  xact_age   interval,
+  query      text     NOT NULL
+);
+INSERT INTO activity VALUES
+  (101, 'idle in transaction', '{}',        '00:42:10', 'UPDATE projects SET title = $1 WHERE id = $2'),
+  (102, 'active',              '{101}',     '00:03:05', 'ALTER TABLE projects ADD COLUMN slug text'),
+  (103, 'active',              '{102}',     '00:02:59', 'SELECT * FROM projects WHERE id = $1'),
+  (104, 'active',              '{102}',     '00:02:40', 'SELECT * FROM projects WHERE owner_id = $1'),
+  (105, 'active',              '{102,101}', '00:02:10', 'UPDATE projects SET version = version + 1 WHERE id = $1'),
+  (201, 'active',              '{}',        '00:00:12', 'UPDATE render_jobs SET status = ''running'' WHERE id = 7'),
+  (202, 'active',              '{201}',     '00:00:08', 'UPDATE render_jobs SET status = ''failed'' WHERE id = 7'),
+  (301, 'active',              '{}',        '00:00:01', 'SELECT count(*) FROM clips');
+```
+
+```sql starter
+SELECT pid, state, 0 AS waiting
+FROM activity
+WHERE cardinality(blocked_by) = 0
+ORDER BY pid;
+```
+
+```sql solution
+WITH RECURSIVE tree AS (
+  SELECT a.pid AS root, a.pid
+  FROM activity a
+  WHERE cardinality(a.blocked_by) = 0
+    AND EXISTS (SELECT 1 FROM activity w WHERE a.pid = ANY (w.blocked_by))
+  UNION
+  SELECT t.root, w.pid
+  FROM tree t
+  JOIN activity w ON t.pid = ANY (w.blocked_by)
+)
+SELECT r.pid, r.state, count(*) - 1 AS waiting
+FROM tree t
+JOIN activity r ON r.pid = t.root
+GROUP BY r.pid, r.state
+ORDER BY waiting DESC, r.pid;
+```
+:::
+
+### Slow queries: the slow log, `pg_stat_statements` and `auto_explain`
+
+Locks explain *stuck*. For *slow*, you need history, and three tools give it to you. Turn them
+on **before** the incident:
+
+- **`pg_stat_statements`**: the top statements by total time, the starting point from
+  **Performance Tuning**. Compare it with yesterday's numbers to see what changed.
+- **The slow-query log**: `log_min_duration_statement = '500ms'` logs every statement slower
+  than that, with its duration and parameters. Add `log_lock_waits = on` (logs waits longer
+  than `deadlock_timeout`) and `log_temp_files = 0` (shows sorts and hashes spilling to disk).
+- **`auto_explain`**: logs the **plan** of slow statements as they run in production, which is
+  the only way to see the plan the app really got, with its real parameters:
+
+```text
+# postgresql.conf (or the managed service's parameter settings)
+shared_preload_libraries = 'pg_stat_statements,auto_explain'
+auto_explain.log_min_duration = '1s'
+auto_explain.log_analyze = on      # real row counts and timings (adds overhead; sample if busy)
+auto_explain.log_buffers = on
+auto_explain.sample_rate = 0.1     # explain 10% of qualifying statements
+```
+
+A plan that "suddenly" got slow is usually a **plan flip**: statistics changed after a bulk load,
+a value became very common, or a generic plan for a prepared statement got cached. Compare the
+logged plan with `EXPLAIN (ANALYZE, BUFFERS)` and look at estimate vs actual rows (**Performance
+Tuning**, "Statistics").
+
+### Managed Postgres: what changes, what doesn't
+
+Most teams run Postgres as a service: **Amazon RDS / Aurora**, **Azure Database for PostgreSQL
+Flexible Server**, **Google Cloud SQL / AlloyDB**, or serverless offerings such as **Neon** and
+**Supabase**. The SQL in this region works the same. The operations differ:
+
+- **No superuser and no shell.** You get an admin role with most privileges (`rds_superuser`,
+  `azure_pg_admin`), extensions from an allow-list, and no `postgresql.conf` to edit.
+- **Settings live in parameter groups or server parameters.** `shared_preload_libraries`,
+  `log_min_duration_statement` and the `auto_explain.*` settings are set in the console or with
+  infrastructure-as-code, and some need a **restart**, which is a maintenance window.
+- **Backups, PITR, replicas and failover are checkboxes.** You still own restore drills, and you
+  still own retries in the app.
+- **Monitoring is built in** (Performance Insights on RDS, Query Store on Azure, Query Insights
+  on Cloud SQL), and it's built on the same `pg_stat_*` views you've seen here.
+- **Connection limits scale with the instance size**, and serverless offerings scale to zero and
+  wake up on the first connection, so expect a cold-start delay. Most of them include a pooler
+  that runs in transaction mode, with the session-state rules from the pooling section.
+
+### Major-version upgrades
+
+Minor releases (18.0 to 18.1) are drop-in binary updates: apply them promptly, they're
+security and bug fixes. **Major** versions (17 to 18) change the on-disk format, so the data
+has to be converted. There are three ways, from simplest to least downtime:
+
+| Approach | Downtime | Notes |
+|---|---|---|
+| `pg_dump` + restore into the new version | hours for big DBs | simplest, also changes provider or hardware |
+| **`pg_upgrade`** (`--link` or `--clone`) | minutes | rewrites the catalogs in place. This is what in-place upgrades on RDS and Azure run. PG 18 keeps most planner statistics; still run `vacuumdb --all --analyze-in-stages --missing-stats-only` afterwards so extended statistics are rebuilt |
+| **logical replication** to a new cluster, then switch | seconds | blue/green: build an 18 cluster, subscribe it to the 17 one, let it catch up, stop writes, switch the connection string. RDS *Blue/Green Deployments* automate this. Sequences and DDL are not replicated, so sync them yourself |
+
+Whatever the method: upgrade a **staging copy** first, run the test suite against it (Testcontainers
+on the new image), check that every extension has a version for the new major, read the release
+notes' "incompatibilities" section, and have a rollback plan. Rolling back after a `pg_upgrade
+--link` means restoring a backup.
+
+:::quiz id=db-16-q8 xp=15
+Page at 03:10: API requests to `/projects` time out. `pg_stat_activity` shows 180 sessions in
+`active` waiting on `Lock`, one `ALTER TABLE projects …` from the deploy pipeline also waiting
+on `Lock`, and one session `idle in transaction` for 47 minutes whose last query was an `UPDATE
+projects …` from a support script. What do you do first?
+
+- [ ] `pg_cancel_backend` the 180 waiting API sessions so the pool recovers
+- [ ] `pg_cancel_backend` the idle-in-transaction session
+- [x] `pg_terminate_backend` the idle-in-transaction session (the root blocker), then make sure the migration has a `lock_timeout` before it retries
+- [ ] Restart the database server
+> The idle session holds a row lock on `projects` (and its `ROW EXCLUSIVE` table lock). The
+> `ALTER TABLE` queues for `ACCESS EXCLUSIVE` behind it, and every API query queues behind the
+> `ALTER`. That's the lock tree. Cancelling the leaves changes nothing, and they come straight
+> back. `pg_cancel_backend` cancels a *running query*, and an idle-in-transaction session has
+> none, so only `pg_terminate_backend` ends its transaction. A restart works too, but it drops
+> every connection and loses the evidence. Afterwards: `idle_in_transaction_session_timeout` for
+> scripts, and `lock_timeout` in the migration tool.
+:::
+
 :::cards id=db-16-cards1 xp=20 title="Production Postgres"
 Q: Expand / contract in one sentence?
 A: Add the new schema alongside the old, migrate data and code over several deploys, and only then remove the old.
@@ -936,6 +1359,18 @@ Q: SET vs SET LOCAL behind PgBouncer transaction mode?
 A: Session `SET` leaks across clients sharing a server connection; `SET LOCAL` lasts only for the current transaction.
 Q: What blocks VACUUM from cleaning dead rows?
 A: Long-running or idle-in-transaction sessions (and old replication slots / prepared transactions) holding back the xmin horizon.
+Q: What is the read-your-writes bug?
+A: A write goes to the primary, the next read goes to an asynchronous replica that hasn't replayed it yet, and the user sees old data. Pin recent writers to the primary or wait for the LSN.
+Q: What does a failover mean for the app?
+A: Connections break and in-flight transactions roll back; retry whole transactions, point at an endpoint that follows the primary, and accept the async RPO.
+Q: Why use a transactional outbox instead of CDC on business tables?
+A: The event commits with the change, and its payload is a designed contract, not your table layout. A relay (polling with SKIP LOCKED, or Debezium on the outbox) publishes it at least once.
+Q: How do you find the root of a lock pile-up?
+A: `pg_blocking_pids(pid)` with `pg_stat_activity`; follow the tree to the session that blocks others but isn't blocked. Cancel its query, or terminate it if it's idle in transaction.
+Q: Which tools show slow queries after the fact?
+A: `pg_stat_statements` (totals), `log_min_duration_statement` (the slow log) and `auto_explain` (the real production plans).
+Q: Three ways to do a major-version upgrade?
+A: dump/restore (hours), `pg_upgrade` (minutes, what in-place managed upgrades use), logical replication to a new cluster and switch (seconds, blue/green).
 :::
 
 ## Recap
@@ -954,3 +1389,8 @@ A: Long-running or idle-in-transaction sessions (and old replication slots / pre
 - **Pool** connections (client pools + PgBouncer); transaction mode means no session state.
 - **VACUUM** is MVCC's garbage collector: keep autovacuum on, tune hot tables, kill long transactions,
   watch wraparound age.
+- **Replicas lag**: route only staleness-tolerant reads to them, retry whole transactions after a
+  failover, and watch replication slots. Publish domain events through a **transactional outbox**.
+- **On call**: `pg_stat_activity`, then `pg_blocking_pids` to the root blocker, then the slow log,
+  `pg_stat_statements` and `auto_explain`. On managed Postgres the knobs live in parameter
+  settings, and major upgrades go through `pg_upgrade` or a logical-replication blue/green switch.

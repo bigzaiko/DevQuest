@@ -2,7 +2,7 @@
 id: fe-17
 title: "Component Forge I: UI Primitives"
 level: advanced
-minutes: 55
+minutes: 65
 xp: 190
 summary: Build the first pieces of a real UI kit — Button, Input, Badge, Spinner — with variant props, rest-prop spreading, ref as a prop and a polymorphic `as`.
 ---

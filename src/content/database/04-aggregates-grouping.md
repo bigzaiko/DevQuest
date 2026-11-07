@@ -2,7 +2,7 @@
 id: db-04
 title: Aggregates & GROUP BY
 level: beginner
-minutes: 35
+minutes: 75
 xp: 120
 summary: Turn rows into answers — COUNT, SUM, AVG, MIN, MAX, GROUP BY, HAVING, FILTER and string_agg.
 ---
@@ -127,7 +127,7 @@ SELECT country, city, count(*) FROM customers GROUP BY country;
 
 …because a country group contains several cities — which one should Postgres show? (MySQL
 without `ONLY_FULL_GROUP_BY` silently shows the value from an arbitrary row of the group.
-Postgres refuses, which is the correct behaviour.) You can group by several columns
+Postgres refuses, which is the correct behavior.) You can group by several columns
 (`GROUP BY country, city` — one group per *combination*) or by an expression
 (`GROUP BY date_trunc('month', ordered_at)`).
 
@@ -222,7 +222,7 @@ FROM orders GROUP BY month ORDER BY month;
 :::
 
 :::tip title="GROUP BY may use an alias — WHERE and HAVING may not"
-Wait — lesson 2's logical order says `GROUP BY` (step 3) runs *before* `SELECT` creates aliases
+Wait — the **SELECT, WHERE & ORDER BY** lesson's logical order says `GROUP BY` (step 3) runs *before* `SELECT` creates aliases
 (step 5), yet the solution's `GROUP BY month` works. That's a deliberate **Postgres extension**: when a
 `GROUP BY` name isn't an input column, Postgres looks it up in the SELECT list, and `GROUP BY 1`
 means "the first output column". The logical order still holds everywhere else, so:
@@ -242,7 +242,7 @@ many teams prefer repeating the expression or `GROUP BY 1` in shared code, becau
 
 ## WHERE vs HAVING
 
-Both filter, but at different moments. Remember the **logical order** from lesson 2: SQL is
+Both filter, but at different moments. Remember the **logical order** from the **SELECT, WHERE & ORDER BY** lesson: SQL is
 written `SELECT … FROM … WHERE … GROUP BY … HAVING …` but evaluated
 **FROM → WHERE → GROUP BY → HAVING → SELECT → DISTINCT → ORDER BY → LIMIT**. So:
 
@@ -528,7 +528,7 @@ as `sum(quantity * unit_price) AS revenue`. What happens in PostgreSQL?
 - [ ] It works only if you also `GROUP BY revenue`
 > HAVING is evaluated **before** SELECT, so the alias doesn't exist yet. ORDER BY runs after
 > SELECT, which is why aliases work there. Write `HAVING sum(quantity * unit_price) > 1000` (or
-> compute the total in a subquery/CTE and filter outside — lesson 9). Grouping by an aggregate
+> compute the total in a subquery/CTE and filter outside — the **Subqueries, CTEs & Recursive Queries** lesson). Grouping by an aggregate
 > isn't allowed at all.
 :::
 
@@ -545,7 +545,7 @@ The same applies to ORMs: in EF Core, `context.Orders.GroupBy(o => o.Status).Sel
 :::info title="Subtotals with ROLLUP"
 Reports often want per-group rows **plus** a grand total. `GROUP BY ROLLUP (country)` adds an
 extra row where `country` is NULL and the aggregates cover everything; `GROUPING SETS` and `CUBE`
-generalise this. Good to recognise when you see it in a reporting query.
+generalize this. Good to recognize when you see it in a reporting query.
 :::
 
 :::job title="Every dashboard is a GROUP BY"

@@ -2,7 +2,7 @@
 id: ops-02
 title: The Docker CLI, Hands-On
 level: beginner
-minutes: 35
+minutes: 50
 xp: 100
 summary: run, ps, logs, exec, inspect, port publishing, env vars, cleanup — and a Postgres 18 dev database in one command.
 ---

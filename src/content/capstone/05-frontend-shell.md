@@ -1,7 +1,7 @@
 ---
 id: cap-05
 title: "Frontend Shell: Modules, Auth & a Typed API Layer"
-level: advanced
+level: expert
 minutes: 270
 xp: 200
 summary: Turn the empty Vite app into a real product shell — feature modules, routing, TanStack Query over a typed client, design tokens, a small UI kit, sign-in and the share dialog.

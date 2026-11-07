@@ -2,7 +2,7 @@
 id: db-07
 title: Tables, Types & Constraints
 level: intermediate
-minutes: 45
+minutes: 70
 xp: 150
 summary: Design tables that protect their own data — Postgres types, identity and generated columns, NOT NULL, UNIQUE, CHECK, foreign keys with ON DELETE, ALTER TABLE and DROP.
 ---
@@ -56,7 +56,7 @@ note it does **not** compare definitions: an old, different `tags` table stays a
 A few Postgres-specific notes worth knowing:
 
 - In Postgres, `text` and `varchar` have **identical performance**. `varchar(255)` is a habit from
-  other databases, not a Postgres optimisation.
+  other databases, not a Postgres optimization.
 - `timestamptz` does *not* store a time zone. It stores an absolute instant (UTC internally) and
   converts to the session's time zone for display. That's exactly what you want for
   `created_at`, `paid_at`, `finished_at`. Npgsql maps it to a UTC `DateTime` / `DateTimeOffset`
@@ -127,7 +127,7 @@ You may have noticed that the shop and studio don't follow this lesson's advice:
   generation, and earlier challenges inserted explicit ids. That's a fixture convention: fixed ids
   make every expected result predictable. A real schema would use
   `bigint GENERATED ALWAYS AS IDENTITY` (or `BY DEFAULT`, if it must accept imported ids).
-- **`shop.orders.ordered_at` is a `timestamp`.** That's the legacy smell lesson 3 warned about: it
+- **`shop.orders.ordered_at` is a `timestamp`.** That's the legacy smell the **Expressions, Functions & NULL** lesson warned about: it
   can't say which zone `10:12` was in. The studio uses `timestamptz` throughout. Once you know the
   zone the old values were written in (say UTC), the fix is a one-line migration:
 
@@ -351,7 +351,7 @@ to children when the parent row is deleted?
 statement — or at commit, if the constraint is declared `DEFERRABLE` — while `RESTRICT` checks
 immediately. For everyday use they behave the same.) There is also `ON UPDATE …` with the same
 options, for when the parent's key changes — rarely needed, because ids are usually meaningless
-numbers that never change (lesson 8 explains why).
+numbers that never change (the **Data Modeling** lesson explains why).
 
 Choose deliberately. `CASCADE` is convenient and dangerous: one `DELETE FROM projects WHERE id = 1`
 can remove thousands of rows, and cascades chain (deleting a user could cascade to projects, which
@@ -453,7 +453,7 @@ direction.
 title: Enrollments
 Tables `students(id)` and `courses(id)` exist. Create the junction table `enrollments` with:
 - `student_id` — `integer`, required, FK to `students(id)`, deleted along with the student
-- `course_id` — `integer`, required, FK to `courses(id)` (default behaviour: block deleting a
+- `course_id` — `integer`, required, FK to `courses(id)` (default behavior: block deleting a
   course that has enrollments)
 - `grade` — `integer`, optional, but if present between `1` and `6` (inclusive)
 - primary key on (`student_id`, `course_id`) so a student can't enroll twice

@@ -2,7 +2,7 @@
 id: db-15
 title: Job Queues in PostgreSQL
 level: expert
-minutes: 45
+minutes: 70
 xp: 250
 summary: Build a durable background-job queue on Postgres — SKIP LOCKED claims, leases, retries with backoff, dead jobs, idempotency, transactional enqueue, LISTEN/NOTIFY and advisory locks.
 ---
@@ -743,7 +743,7 @@ SELECT pg_try_advisory_lock(hashtext('nightly-cleanup'));   -- true = you're the
 -- … do the work …
 SELECT pg_advisory_unlock(hashtext('nightly-cleanup'));
 
--- transaction-level: released automatically at COMMIT/ROLLBACK (safer)
+-- transaction-level: released automatically at COMMIT/ROLLBACK
 BEGIN;
 SELECT pg_try_advisory_xact_lock(hashtext('nightly-cleanup'));
 -- … work …
@@ -762,6 +762,20 @@ COMMIT;
 - Advisory locks are also handy to serialize per-entity work ("only one render per project at a
   time": `pg_try_advisory_xact_lock(project_id)`).
 
+**Which variant?** Neither is "safer" in general. It's a trade-off between two rules you've
+already met:
+
+| | Session-level (`pg_try_advisory_lock`) | Transaction-level (`pg_try_advisory_xact_lock`) |
+|---|---|---|
+| Released | by `pg_advisory_unlock` or when the connection closes | automatically at `COMMIT`/`ROLLBACK`, can't leak |
+| Work pattern | many short transactions while holding the lock | all the work inside **one** transaction |
+| Clashes with | **PgBouncer transaction mode** (the lock is owned by one server connection, see the quiz below and "Connection pooling" in **Production PostgreSQL**) | the **Transactions, Isolation & Locking** advice to keep transactions short: `idle_in_transaction_session_timeout` and `transaction_timeout` will kill a long job, and a long transaction holds back VACUUM |
+| Pick it for | a long sweep that works in batches (the chunking loop from **Performance Tuning**) on a **direct, non-pooled** connection | short singleton work (seconds) that fits comfortably in one transaction, or per-entity locks |
+
+For a nightly job that runs for minutes, the usual answer is the **session-level** lock on a
+dedicated connection that bypasses the pooler, with the work done in short committed batches.
+Use the transaction-level lock only when the whole job really is one short transaction.
+
 :::quiz id=db-15-q6 xp=15
 Your app connects through **PgBouncer in transaction-pooling mode**. A cron worker runs
 `SELECT pg_try_advisory_lock(42)`, then the cleanup statements, then `pg_advisory_unlock(42)`,
@@ -774,8 +788,9 @@ each as a separate autocommit statement. What's the risk?
 > Advisory locks are shared by every session in the same database in *what* they lock, but a session-level lock is *owned* by one
 > server connection — and transaction pooling hands you a different one per transaction. The
 > lock can stay held by a connection PgBouncer gives to some other client, blocking every future
-> run; the unlock on another connection just returns `false` with a warning. Use `pg_try_advisory_xact_lock` inside one explicit
-> transaction, or a direct (non-pooled) connection for the leader.
+> run; the unlock on another connection just returns `false` with a warning. Use a direct
+> (non-pooled) connection for the leader, or `pg_try_advisory_xact_lock` inside one explicit
+> transaction if the job is short enough to fit in one.
 :::
 
 ## Observability: is the queue healthy?
@@ -908,7 +923,7 @@ production at 2 a.m.
 - Exponential backoff with jitter, `max_attempts`, a dead state, and an alert on it.
 - Idempotent handlers and unique keys on side effects; partial unique index for dedupe on enqueue.
 - Enqueue inside the business transaction; NOTIFY for latency + polling as the safety net.
-- Advisory xact locks for singleton/cron jobs.
+- Advisory locks for singleton/cron jobs: session-level on a direct (unpooled) connection for long, batched jobs; transaction-level only when the job fits in one short transaction.
 - Archive or partition finished jobs; aggressive autovacuum on the queue table; watch for long
   transactions.
 - Priorities and fairness: add a `priority` column to the `ORDER BY`, or a per-tenant cap, so one
@@ -940,7 +955,7 @@ A: Write messages to an outbox table in the business transaction; a relay publis
 Q: LISTEN/NOTIFY guarantees?
 A: Delivered on commit to current listeners only — not durable; use it as a wake-up hint with polling as fallback.
 Q: How do you make sure a cron job runs on only one worker?
-A: pg_try_advisory_xact_lock(key) in a transaction; others get false and skip. Released automatically.
+A: `pg_try_advisory_lock(key)` on a direct connection for long, batched jobs, or `pg_try_advisory_xact_lock(key)` when the job fits in one short transaction; others get false and skip.
 Q: Why does a queue table need special maintenance?
 A: Extreme update/delete churn creates dead tuples: archive/partition old jobs, tune autovacuum, avoid long transactions.
 :::

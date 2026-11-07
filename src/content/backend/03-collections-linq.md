@@ -2,7 +2,7 @@
 id: be-03
 title: Collections & LINQ
 level: intermediate
-minutes: 50
+minutes: 55
 xp: 140
 summary: List, Dictionary, HashSet, arrays and Span; IEnumerable vs IQueryable vs List; LINQ operators and the deferred-execution traps that cause real production bugs.
 ---

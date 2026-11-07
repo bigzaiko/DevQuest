@@ -2,7 +2,7 @@
 id: fe-03
 title: TypeScript Essentials
 level: beginner
-minutes: 35
+minutes: 45
 xp: 110
 summary: Types, interfaces vs type aliases, unions, literal types, narrowing, optional properties, typed functions, and why `unknown` beats `any`.
 ---

@@ -2,7 +2,7 @@
 id: pro-03
 title: Web Security for Full-Stack Devs
 level: advanced
-minutes: 80
+minutes: 90
 xp: 200
 summary: The OWASP Top 10 through a React + ASP.NET Core + Postgres lens — injection, XSS, CSRF, IDOR, auth, headers, CORS, dependencies and secrets that leak through URLs and logs.
 ---

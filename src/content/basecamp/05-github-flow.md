@@ -2,7 +2,7 @@
 id: bc-05
 title: GitHub Flow & Pull Requests
 level: intermediate
-minutes: 35
+minutes: 45
 xp: 100
 summary: How teams actually ship on GitHub — issues, branches, pull requests, reviews, branch protection, CODEOWNERS and the gh CLI.
 ---

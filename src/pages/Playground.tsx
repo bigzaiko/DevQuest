@@ -1,3 +1,4 @@
+import { normalizeQuotes } from '../engine/quotes.ts'
 import { useState } from 'react'
 import { DATASETS } from '../content/index.ts'
 import { playSql } from '../runners/client.ts'
@@ -39,7 +40,7 @@ export function Playground() {
   const [busy, setBusy] = useState(false)
   const go = async () => {
     setBusy(true); countRun('sql')
-    try { setRun(await playSql(db, sql)) } catch (e) { setRun({ ok: false, error: String((e as Error).message), results: [], ms: 0 }) }
+    try { setRun(await playSql(db, normalizeQuotes(sql))) } catch (e) { setRun({ ok: false, error: String((e as Error).message), results: [], ms: 0 }) }
     setBusy(false)
   }
   const dbs = [...Object.keys(DATASETS), 'empty']

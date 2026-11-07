@@ -2,7 +2,7 @@
 id: fe-19
 title: Accessible Modals & Dialogs
 level: advanced
-minutes: 70
+minutes: 85
 xp: 200
 summary: Build a modal that works for everyone — dialog roles and labelling, focus on open, focus trap, Escape, focus return, portals, native <dialog> and the WCAG 2.2 AA basics behind them.
 ---

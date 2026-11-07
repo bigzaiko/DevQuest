@@ -2,7 +2,7 @@
 id: bc-01
 title: Welcome to DevQuest
 level: beginner
-minutes: 20
+minutes: 60
 xp: 50
 summary: How the academy works — XP, quizzes, code challenges, SQL on real Postgres, labs and flashcards.
 ---

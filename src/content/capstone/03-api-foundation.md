@@ -898,7 +898,13 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:18").Build();
 
-    public async ValueTask InitializeAsync() => await _postgres.StartAsync();
+    public async ValueTask InitializeAsync()
+    {
+        await _postgres.StartAsync();
+        // Boot the API (which applies the migrations) now, once. Left lazy, two tests running in
+        // parallel can both start a host, and two concurrent migration runs collide.
+        _ = Server;
+    }
 
     public override async ValueTask DisposeAsync()
     {

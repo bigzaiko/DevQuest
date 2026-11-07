@@ -2,13 +2,13 @@
 id: db-05
 title: JOINs
 level: intermediate
-minutes: 55
+minutes: 95
 xp: 170
 summary: Combine tables — INNER, LEFT, RIGHT, FULL, CROSS and self-joins, multi-table joins, anti-joins, UNION/INTERSECT/EXCEPT, and the row-multiplication trap.
 ---
 
 A well-designed database spreads information across tables: the order knows its `customer_id`,
-not the customer's name. That's good design (lesson 8 explains why) — but it means almost every
+not the customer's name. That's good design (the **Data Modeling** lesson explains why) — but it means almost every
 useful query has to put the pieces back together. That's what **joins** do.
 
 Joins are also the #1 source of wrong numbers in reports. A join that silently drops rows, or
@@ -101,7 +101,7 @@ ORDER BY o.id;
 :::
 
 :::sql id=db-05-sql2 db=shop xp=25 ordered=true
-title: Catalogue with categories
+title: Catalog with categories
 Return the **category name**, the product name and the price of every product. Order by category
 name, then product name.
 
@@ -391,14 +391,14 @@ usually rewrite it as a LEFT JOIN so queries read in one direction.
 
 `FULL [OUTER] JOIN` keeps unmatched rows from **both** sides. It's the tool for
 **reconciliation**: comparing two lists that should match (your orders vs. the payment
-provider's charges, the catalogue vs. the warehouse) and showing what's missing on either side.
+provider's charges, the catalog vs. the warehouse) and showing what's missing on either side.
 
 ```text
 catalog            warehouse          catalog c FULL JOIN warehouse w ON w.sku = c.sku
 KB-1 Keyboard      KB-1 10            c.sku | c.name   | w.sku | w.qty
 MS-1 Mouse         MN-1  0            KB-1  | Keyboard | KB-1  | 10      ← in both
 MN-1 Monitor       HB-1  5            MN-1  | Monitor  | MN-1  | 0       ← in both
-                                      MS-1  | Mouse    | NULL  | NULL    ← only in catalogue
+                                      MS-1  | Mouse    | NULL  | NULL    ← only in catalog
                                       NULL  | NULL     | HB-1  | 5       ← only in warehouse
 ```
 
@@ -407,9 +407,9 @@ usual trick is `COALESCE(c.sku, w.sku)` to get "the key" for every row. Add
 `WHERE c.sku IS NULL OR w.sku IS NULL` to show only the mismatches.
 
 :::sql id=db-05-sql8 db=empty xp=40 ordered=true
-title: Reconcile catalogue and warehouse
+title: Reconcile catalog and warehouse
 Two systems list SKUs: `catalog(sku, name)` and `warehouse(sku, qty)`. Some SKUs exist in only
-one of them. Return **every SKU from either table** with three columns: the sku, the catalogue
+one of them. Return **every SKU from either table** with three columns: the sku, the catalog
 `name` (NULL if missing) and the warehouse `qty` (NULL if missing). Order by sku.
 
 hint: `FULL JOIN warehouse w ON w.sku = c.sku`
@@ -441,22 +441,22 @@ ORDER BY 1;
 
 `CROSS JOIN` is the Cartesian product with no condition: every row with every row. It's rarely
 what you want on big tables (10 000 × 10 000 = 100 million rows), but it's perfect for
-generating combinations — sizes × colours, users × feature flags, every day × every store.
+generating combinations — sizes × colors, users × feature flags, every day × every store.
 
 ```sql
 SELECT s.size, c.color FROM sizes s CROSS JOIN colors c;
--- 4 sizes × 3 colours = 12 rows
+-- 4 sizes × 3 colors = 12 rows
 ```
 
 There is no `ON`: the row count is always *left rows × right rows*. That's also why a forgotten
 join condition is so dangerous — it quietly turns a join into a cross join.
 
 :::quiz id=db-05-q6 xp=10
-`sizes` has 4 rows and `colors` has 3. A fifth colour is added. How many rows does
+`sizes` has 4 rows and `colors` has 3. A fifth color is added. How many rows does
 `sizes CROSS JOIN colors` return now?
 - [ ] 9 (4 + 5)
 - [x] 20 (4 × 5)
-- [ ] 5 — one per colour
+- [ ] 5 — one per color
 - [ ] 16 (4 × 4)
 > A cross join pairs every row with every row, so the result is the **product** of the row counts:
 > 4 × 5 = 20. Adding rows to either side multiplies the output, which is why an accidental cross
@@ -707,7 +707,7 @@ instead of deep `Include` chains on list endpoints.
 
 A join puts rows **side by side**: the result gets more columns. Sometimes you want the opposite —
 put two results **on top of each other**, or compare them: "everyone we should invite (customers
-*and* staff)", "products in the catalogue but never shipped", "rows that differ between the old
+*and* staff)", "products in the catalog but never shipped", "rows that differ between the old
 and the new table after a migration". That's what the **set operations** do. They take two
 complete queries and combine their *rows*:
 

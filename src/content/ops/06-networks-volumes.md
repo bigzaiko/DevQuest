@@ -2,7 +2,7 @@
 id: ops-06
 title: Networks and Volumes
 level: intermediate
-minutes: 40
+minutes: 45
 xp: 150
 summary: How containers find each other (bridge networks, embedded DNS), the localhost trap, reaching the host, and where data really lives — volumes, bind mounts, backups and UIDs.
 ---

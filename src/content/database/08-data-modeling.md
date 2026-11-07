@@ -2,7 +2,7 @@
 id: db-08
 title: Data Modeling
 level: intermediate
-minutes: 55
+minutes: 85
 xp: 180
 summary: Design schemas that stay correct as the product grows — keys (identity vs uuidv7), normalization in plain words, junction tables, trees, CHECK vs enum vs lookup tables, naming, soft delete and audit columns, using a branching-video SaaS.
 ---
@@ -16,9 +16,9 @@ tables, trees), the conventions teams expect, and the trade-offs (denormalizatio
 audit columns). Our running example is the **studio** dataset: a SaaS where users build
 interactive, branching videos — like a "choose your own adventure" film.
 
-## What we're modelling
+## What we're modeling
 
-You toured the studio's tables in lesson 1 and have queried them since. Now let's look at the
+You toured the studio's tables in the **Thinking in Tables** lesson and have queried them since. Now let's look at the
 *product* behind them, because that's where a model starts. In plain words:
 
 - **Users** sign up on a plan (`free`, `pro`, `team`).
@@ -242,7 +242,7 @@ ORDER BY u.display_name;
 :::
 
 Because owners and members live in different places, "which projects can Jonas open?" combines
-two queries — a job for `UNION ALL` from lesson 5, which stacks the rows of two queries with the
+two queries — a job for `UNION ALL` from the **JOINs** lesson, which stacks the rows of two queries with the
 same number of compatible columns. (`ALL`, because the two halves can never return the same row:
 the first labels every row `'owner'`, the second `'editor'` or `'viewer'` — so there is nothing to
 deduplicate, and no reason to pay for it.)
@@ -295,7 +295,7 @@ The simplest model is an **adjacency list**: each row stores the id of its paren
 `parent_clip_id REFERENCES clips(id)` — a foreign key that points at its **own** table. The root
 has `parent_clip_id = NULL`. One level up or down is a simple **self-join** (the same table joined
 twice under two aliases, `parent` and `child`); the whole tree needs a recursive CTE
-(`WITH RECURSIVE`, lesson 9). Alternatives exist — Postgres's `ltree` paths, closure tables,
+(`WITH RECURSIVE`, the **Subqueries, CTEs & Recursive Queries** lesson). Alternatives exist — Postgres's `ltree` paths, closure tables,
 nested sets — but the adjacency list is the default for good reason: it's simple, moving a
 subtree is a one-row update, and there's no redundant data that could disagree.
 
@@ -312,7 +312,7 @@ What the plain self-FK does **not** guarantee:
 If the product later allows two choices to lead to the *same* clip (branches that merge), it's
 no longer a tree but a **graph**, and you'd model the edges in their own table:
 `clip_choices(from_clip_id, to_clip_id, label)`. Knowing which shape your data really has is the
-heart of modelling.
+heart of modeling.
 
 :::sql id=db-08-sql4 db=studio xp=35 ordered=true
 title: The choices after the intro
@@ -872,7 +872,7 @@ it's the root") and turn each one into a constraint.
 
 :::job title="Schema reviews are code reviews"
 On a real team, a new table arrives as a migration in a pull request, and the review is often the
-most important one of the feature: names, types, nullability, FKs and ON DELETE behaviour, indexes
+most important one of the feature: names, types, nullability, FKs and ON DELETE behavior, indexes
 for the expected queries, and "how will we migrate this later?". Expect questions like "why is
 this nullable?" and "what happens to these rows when the user is deleted?" — and ask them.
 :::

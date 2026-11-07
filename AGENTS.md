@@ -17,7 +17,7 @@ is **no backend and no login**, by design.
 ```bash
 npm install
 npm run dev        # http://localhost:5173
-npm run validate   # parse every lesson + run every challenge solution against its tests (REQUIRED before commit)
+npm run validate   # every region in its own process: parse lessons + run every challenge solution against its tests (REQUIRED before commit)
 npm run validate:one -- frontend/0 ops/   # only matching paths
 npm run typecheck
 npm run build      # → dist/
@@ -59,9 +59,8 @@ vite.config.ts           ← `?meta` plugin that turns a lesson into a small JSO
 1. **A lesson:** add `src/content/<track>/NN-slug.md` following `docs/CONTENT_FORMAT.md`.
    Lesson id `<prefix>-NN`, exercise ids `<lesson-id>-q1` / `-c1` / `-sql1` / `-lab1` / `-cards1`.
    Never reuse or rename an existing id — saved progress is keyed by id.
-2. **A region (e.g. XAML / Avalonia / MAUI):** create the folder, add/enable its entry in
-   `src/content/tracks.ts` (the `desktop` region exists with `soon: true` — flip it to `false`),
-   add the prefix to `PREFIX` in `scripts/validate-content.ts`, and add it to `ROUTE` if it belongs
+2. **A region:** create the folder, add its entry in `src/content/tracks.ts` (`soon: true` shows it
+   as "coming soon"), add the prefix to `PREFIX` in `scripts/validate-content.ts`, and add it to `ROUTE` if it belongs
    in the recommended path. Achievements and the skill check for the region appear automatically.
 3. **A SQL dataset:** add `src/content/datasets/<name>.sql`; reference it with `db=<name>`.
 4. Run `npm run validate` until it reports 0 errors.

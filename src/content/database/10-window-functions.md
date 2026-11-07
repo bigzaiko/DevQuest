@@ -2,14 +2,14 @@
 id: db-10
 title: Window Functions
 level: intermediate
-minutes: 45
+minutes: 60
 xp: 150
 summary: OVER and PARTITION BY — running credit balances, rankings, top-N per group, LAG/LEAD, moving averages and window frames, without collapsing your rows.
 ---
 
 `GROUP BY` answers questions like *"what is each user's credit balance?"* — but it **collapses**
 rows: one output row per group. Very often you want the detail rows **and** a calculation over
-their neighbours:
+their neighbors:
 
 - Show every ledger entry **and** the balance after it (a bank statement).
 - Show every clip **and** its share of the project's total runtime.
@@ -18,7 +18,7 @@ their neighbours:
 
 That's what **window functions** do. They compute a value for each row by looking at a *window*
 of related rows, and they never remove rows. They are one of the most useful features in SQL
-and a favourite interview topic — and they turn many "load everything into C# and loop" jobs into
+and a favorite interview topic — and they turn many "load everything into C# and loop" jobs into
 one query.
 
 Four words you'll see throughout this lesson:
@@ -667,6 +667,6 @@ A: No. They step through the partition in window order; only aggregates and firs
 - Windows run after `WHERE`/`GROUP BY`/`HAVING`: filter on them in an outer query, and window over grouped rows with `sum(count(*)) OVER ()`.
 - `row_number`, `rank`, `dense_rank` differ only on ties; make orderings unique with tiebreakers.
 - **Top-N per group**: `row_number() OVER (PARTITION BY … ORDER BY …)` in a CTE, filter `rn <= N` outside (or `DISTINCT ON` for top-1).
-- `lag` / `lead` compare a row with its neighbours — gaps, deltas, status changes.
+- `lag` / `lead` compare a row with its neighbors — gaps, deltas, status changes.
 - **Frames** (`ROWS` / `RANGE` / `GROUPS`) control which rows are seen; know the default and its tie and `last_value` traps.
 - Gaps-and-islands: `value - row_number()` groups consecutive runs.

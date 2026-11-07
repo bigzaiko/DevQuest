@@ -2,7 +2,7 @@
 id: fe-08
 title: State & Events
 level: beginner
-minutes: 50
+minutes: 65
 xp: 140
 summary: useState, event handlers, why state updates are snapshots and batched, functional updates, updating objects and arrays immutably, and deriving instead of storing.
 ---

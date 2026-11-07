@@ -2,7 +2,7 @@
 id: fe-07
 title: Props & Composition
 level: beginner
-minutes: 40
+minutes: 50
 xp: 120
 summary: Passing and typing props, defaults, children and slots, composition over configuration, lifting state up, and a first look at prop drilling.
 ---

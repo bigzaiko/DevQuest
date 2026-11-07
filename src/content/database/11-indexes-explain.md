@@ -2,7 +2,7 @@
 id: db-11
 title: Indexes & EXPLAIN
 level: advanced
-minutes: 50
+minutes: 70
 xp: 200
 summary: How B-tree indexes really work, how to read EXPLAIN like a senior, and how to pick composite, partial, expression, BRIN and GiST indexes without slowing down your writes.
 ---
@@ -51,7 +51,7 @@ inner │ a  ...  f  ... k│     │ m  ...  p  ... s│     │ t  ...  w  ...
 leaf  [ada→(0,1)][ali→(4,7)] ⇄ [mara→(0,3)][max→(9,2)] ⇄ [tom→(3,3)] ...   (sorted, doubly linked)
 ```
 
-- **Leaf pages** hold `(key, TID)` entries, **sorted** by key and linked to their neighbours.
+- **Leaf pages** hold `(key, TID)` entries, **sorted** by key and linked to their neighbors.
 - **Inner pages** hold separator keys that say which child page covers which key range.
 - Every leaf is at the same depth, so the tree is always *balanced*.
 

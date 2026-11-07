@@ -2,7 +2,7 @@
 id: ops-03
 title: Writing Dockerfiles
 level: beginner
-minutes: 40
+minutes: 50
 xp: 120
 summary: Every core instruction, exec vs shell form, CMD vs ENTRYPOINT, the layer cache and how to order a Dockerfile so rebuilds take seconds.
 ---

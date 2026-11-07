@@ -2,15 +2,16 @@
 id: db-18
 title: "Boss Fight: The Studio Database"
 level: expert
-minutes: 75
+minutes: 95
 xp: 400
-summary: Seven escalating phases on the studio dataset — wallets, the longest story branch, a queue health dashboard, API-shaped jsonb, an analytics report, a zero-downtime migration and a transactional job claim.
+summary: Eight escalating phases on the studio dataset — wallets, the longest story branch, a queue health dashboard, API-shaped jsonb, an analytics report, a zero-downtime migration, a transactional job claim and a fast, tenant-safe feed.
 ---
 
 You've reached the end of the Database region. The studio team has a list of tickets nobody else
 wants, and they've landed on your desk. Each ticket is a **phase** of this boss fight. They get
 harder as you go, and each one combines several things you've learned: CTEs, recursive queries,
-window functions, `FILTER`, jsonb building, migrations and the job-queue claim.
+window functions, `FILTER`, jsonb building, migrations, the job-queue claim, and finally
+indexing, keyset pagination and row-level security.
 
 How to fight:
 
@@ -26,13 +27,14 @@ How to fight:
 
 | Phase | Main tools | Refresher |
 |---|---|---|
-| 1 Wallets | CTE, `LEFT JOIN`, `FILTER`, `dense_rank()` | lessons 4, 5, 10 |
-| 2 Longest branch | recursive CTE, top-1-per-group | lessons 9, 10 |
-| 3 Queue dashboard | `GROUP BY` + `FILTER`, `nullif`, intervals | lessons 3, 4 |
-| 4 API payload | `jsonb_build_object`, ordered `jsonb_agg` | lesson 13 |
-| 5 Analytics | recursive CTE + jsonb + `rank()` | lessons 9, 10, 13 |
-| 6 Migration | `ALTER TABLE`, `CHECK`, partial index | lessons 7, 11, 16 |
-| 7 Final claim | `SKIP LOCKED`, data-modifying CTE | lessons 9, 15 |
+| 1 Wallets | CTE, `LEFT JOIN`, `FILTER`, `dense_rank()` | Aggregates, JOINs, Window Functions |
+| 2 Longest branch | recursive CTE, top-1-per-group | CTEs, Window Functions |
+| 3 Queue dashboard | `GROUP BY` + `FILTER`, `nullif`, intervals | Expressions, Aggregates |
+| 4 API payload | `jsonb_build_object`, ordered `jsonb_agg` | jsonb |
+| 5 Analytics | recursive CTE + jsonb + `rank()` | CTEs, Window Functions, jsonb |
+| 6 Migration | `ALTER TABLE`, `CHECK`, partial index | Tables & Constraints, Indexes, Production |
+| 7 Final claim | `SKIP LOCKED`, data-modifying CTE | CTEs, Job Queues |
+| 8 Tenant-safe feed | keyset pagination, composite index, RLS policy | Indexes, Performance Tuning, Production |
 
 As a reminder, here's the studio schema:
 
@@ -237,7 +239,7 @@ A teammate "simplifies" phase 2 by finding endings with
 - [x] No rows at all, because root clips put NULLs into the subquery
 - [ ] An error: NOT IN can't be used inside a recursive CTE
 - [ ] Only the root clips are returned
-> The NOT IN + NULL trap from lesson 9. The subquery returns every `parent_clip_id`, and root
+> The NOT IN + NULL trap from the **Subqueries, CTEs & Recursive Queries** lesson. The subquery returns every `parent_clip_id`, and root
 > clips contribute `NULL`. `id NOT IN (1, 2, …, NULL)` expands to `id <> 1 AND id <> 2 AND … AND
 > id <> NULL`; the last comparison is `NULL` (unknown), so the whole condition is never `TRUE`
 > and **no** row passes. There's no error and no warning, just an empty result, which is why this
@@ -389,7 +391,7 @@ DTOs. Postgres can return the finished JSON in one round trip. The tools:
 
 Why not just `LEFT JOIN clips` and `LEFT JOIN project_members` and `GROUP BY`? Because two
 one-to-many joins **multiply**: *The Heist* has 7 clips and 3 members, so the join produces
-7 × 3 = 21 rows, and `count(c.id)` says 21 clips (the row-multiplication trap from lesson 5).
+7 × 3 = 21 rows, and `count(c.id)` says 21 clips (the row-multiplication trap from the **JOINs** lesson).
 Each correlated subquery only sees its own child table, so nothing multiplies.
 
 **Common trap:** an aggregate over zero rows returns `NULL`, so a project without members gets
@@ -719,7 +721,7 @@ patterns:
   to pretend locked rows don't exist and take the next candidate, so they neither wait nor
   collide. Without any `FOR UPDATE`, two workers can both read "job 10 is queued" from their
   snapshots and both claim it.
-- **A data-modifying CTE** (lesson 9). `WITH claimed AS (UPDATE … RETURNING …)` makes the
+- **A data-modifying CTE** (the **Subqueries, CTEs & Recursive Queries** lesson). `WITH claimed AS (UPDATE … RETURNING …)` makes the
   updated rows available to the rest of the statement, so an `INSERT … SELECT … FROM claimed`
   can charge the owner of exactly the job that was claimed. If nothing was claimed, `claimed`
   is empty and nothing is inserted.
@@ -827,11 +829,181 @@ from an identity column, not the literal `15`). What happens with `SKIP LOCKED` 
 > doing its job.
 :::
 
+## Phase 8 — The tenant-safe feed
+
+> **Ticket STU-404:** *The new "Render history" panel pages through a project's render jobs,
+> newest first, with "Load more". It must stay fast when a project has a million jobs, and a
+> user must never see jobs of a project they don't belong to, even if an endpoint forgets its
+> `WHERE`.*
+
+The last phase checks the advanced core of the region in one ticket:
+
+- **Keyset pagination** (Performance Tuning). The client sends the sort key of the last row it
+  saw, and the next page is "the rows after that", `WHERE (created_at, id) < ($2, $3)`. `OFFSET`
+  would get slower with every page and would repeat or skip rows while new jobs arrive. The `id`
+  tiebreaker matters here: jobs 5 and 12 were created in the same second.
+- **The right composite index** (Indexes & EXPLAIN). Equality column first, then the sort
+  columns in the order of the `ORDER BY`: `(project_id, created_at, id)`. The planner then walks
+  one slice of the index backwards and stops after `LIMIT` rows, with no Sort node. A B-tree can
+  be read in either direction, so `(project_id, created_at DESC, id DESC)` works too.
+- **Row-level security** (Production PostgreSQL). The policy is the safety net under the app's
+  own filter: the API connects as a non-owner role and sets `app.user_id` per transaction, and
+  Postgres hides every row the policy doesn't allow.
+
+This phase is graded by a `check` script, as the migration was: the grader calls your function,
+runs `EXPLAIN` on the page query, and then queries as the app role.
+
+:::sql id=db-18-sql8 db=studio xp=100
+title: Phase 8a — Fast, stable pages
+Create **both** of these:
+
+1. A SQL function `job_page(p_project int, p_created timestamptz, p_id int, p_limit int)` that
+   returns `TABLE (id int, kind text, created_at timestamptz)`: the jobs of project `p_project`
+   that come **after** the cursor `(p_created, p_id)` in the order `created_at DESC, id DESC`, in
+   that order, at most `p_limit` rows.
+2. **One** index on `render_jobs` that lets the page query run as an index scan with **no Sort**
+   node.
+
+The grader calls `job_page(5, '2025-07-02 12:00+00', 12, 10)` (job 5 shares job 12's timestamp
+and must be returned) and `job_page(1, '2025-06-01 09:03+00', 11, 10)`. Then it runs `EXPLAIN` on
+the page query with sequential scans disabled and checks that there's no Sort.
+
+hint: `CREATE FUNCTION job_page(…) RETURNS TABLE (id int, kind text, created_at timestamptz) LANGUAGE sql STABLE AS $$ SELECT … $$;`
+hint: Inside the function, qualify the columns (`r.id`, `r.created_at`): the output column names are also variables there.
+hint: `WHERE r.project_id = p_project AND (r.created_at, r.id) < (p_created, p_id) ORDER BY r.created_at DESC, r.id DESC LIMIT p_limit`
+hint: `CREATE INDEX … ON render_jobs (project_id, created_at, id);`
+
+```sql starter
+CREATE FUNCTION job_page(p_project int, p_created timestamptz, p_id int, p_limit int)
+RETURNS TABLE (id int, kind text, created_at timestamptz)
+LANGUAGE sql STABLE AS $$
+  SELECT r.id, r.kind, r.created_at
+  FROM render_jobs r
+  WHERE r.project_id = p_project AND r.created_at < p_created
+  ORDER BY r.created_at DESC
+  LIMIT p_limit
+$$;
+```
+
+```sql solution
+CREATE INDEX render_jobs_project_feed_idx ON render_jobs (project_id, created_at, id);
+
+CREATE FUNCTION job_page(p_project int, p_created timestamptz, p_id int, p_limit int)
+RETURNS TABLE (id int, kind text, created_at timestamptz)
+LANGUAGE sql STABLE AS $$
+  SELECT r.id, r.kind, r.created_at
+  FROM render_jobs r
+  WHERE r.project_id = p_project
+    AND (r.created_at, r.id) < (p_created, p_id)
+  ORDER BY r.created_at DESC, r.id DESC
+  LIMIT p_limit
+$$;
+```
+
+```sql check
+CREATE OR REPLACE FUNCTION plan_of(q text) RETURNS SETOF text LANGUAGE plpgsql AS $$
+DECLARE r text;
+BEGIN
+  FOR r IN EXECUTE 'EXPLAIN (COSTS OFF) ' || q LOOP RETURN NEXT r; END LOOP;
+END $$;
+SET enable_seqscan = off;
+SET enable_bitmapscan = off;
+SELECT 'page A: ' || coalesce((SELECT string_agg(id || ' ' || kind, ', ' ORDER BY n)
+         FROM (SELECT *, row_number() OVER () AS n
+               FROM job_page(5, '2025-07-02 12:00+00', 12, 10)) a), '(none)') AS result
+UNION ALL
+SELECT 'page B: ' || coalesce((SELECT string_agg(id || ' ' || kind, ', ' ORDER BY n)
+         FROM (SELECT *, row_number() OVER () AS n
+               FROM job_page(1, '2025-06-01 09:03+00', 11, 10)) b), '(none)')
+UNION ALL
+SELECT 'no sort: ' || NOT bool_or(p LIKE '%Sort%')
+FROM plan_of($q$SELECT id, kind, created_at FROM render_jobs
+               WHERE project_id = 5 AND (created_at, id) < ('2025-07-02 12:00+00', 12)
+               ORDER BY created_at DESC, id DESC LIMIT 10$q$) p;
+```
+:::
+
+:::sql id=db-18-sql9 db=studio xp=100
+title: Phase 8b — The safety net
+The API connects as the role `boss_app` (already created and granted `SELECT` on the studio
+tables) and runs `SELECT set_config('app.user_id', '<id>', true)` at the start of every
+transaction.
+
+Turn on row-level security for `render_jobs` with a policy so that `boss_app` sees a job only if
+the current user **owns** the job's project **or is a member** of it (any role). With no user
+set, or an empty setting, it must see **nothing**, without an error.
+
+The grader queries `render_jobs` as `boss_app` with no user, as Jonas (user 2), as Lena (user 5)
+and as Ivy (user 3), and lists the visible job ids.
+
+hint: `ALTER TABLE render_jobs ENABLE ROW LEVEL SECURITY;`
+hint: `CREATE POLICY … ON render_jobs FOR SELECT USING (EXISTS (SELECT 1 FROM projects p WHERE p.id = render_jobs.project_id AND p.owner_id = …) OR EXISTS (… project_members …));`
+hint: `nullif(current_setting('app.user_id', true), '')::int` is NULL when nothing is set, and NULL never matches.
+
+```sql setup
+DO $$ BEGIN CREATE ROLE boss_app; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+GRANT SELECT ON users, projects, project_members, clips, render_jobs, credit_ledger TO boss_app;
+```
+
+```sql starter
+ALTER TABLE render_jobs ENABLE ROW LEVEL SECURITY;
+```
+
+```sql solution
+ALTER TABLE render_jobs ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY render_jobs_visible ON render_jobs
+  FOR SELECT
+  USING (
+    EXISTS (SELECT 1 FROM projects p
+            WHERE p.id = render_jobs.project_id
+              AND p.owner_id = nullif(current_setting('app.user_id', true), '')::int)
+    OR EXISTS (SELECT 1 FROM project_members m
+               WHERE m.project_id = render_jobs.project_id
+                 AND m.user_id = nullif(current_setting('app.user_id', true), '')::int)
+  );
+```
+
+```sql check
+CREATE TEMP TABLE seen (step int, who text, visible text);
+GRANT INSERT, SELECT ON seen TO boss_app;
+SET ROLE boss_app;
+SELECT set_config('app.user_id', '', false);
+INSERT INTO seen SELECT 1, 'nobody', coalesce((SELECT string_agg(id::text, ',' ORDER BY id) FROM render_jobs), '(none)');
+SELECT set_config('app.user_id', '2', false);
+INSERT INTO seen SELECT 2, 'jonas', coalesce((SELECT string_agg(id::text, ',' ORDER BY id) FROM render_jobs), '(none)');
+SELECT set_config('app.user_id', '5', false);
+INSERT INTO seen SELECT 3, 'lena', coalesce((SELECT string_agg(id::text, ',' ORDER BY id) FROM render_jobs), '(none)');
+SELECT set_config('app.user_id', '3', false);
+INSERT INTO seen SELECT 4, 'ivy', coalesce((SELECT string_agg(id::text, ',' ORDER BY id) FROM render_jobs), '(none)');
+RESET ROLE;
+SELECT step, who, visible FROM seen ORDER BY step;
+```
+:::
+
+:::quiz id=db-18-q8 xp=15
+Phase 8 is live. A teammate proposes four follow-ups. Which ones are **correct**? Select all
+that apply.
+
+- [x] Keep `WHERE project_id = $1` in the endpoint's query even though RLS filters too: it is what makes the planner use `(project_id, created_at, id)`, and it documents the intent in code review
+- [ ] Add "Jump to page 37" by computing `OFFSET 36 * 20` alongside the keyset cursor, since the index makes OFFSET as cheap as keyset
+- [x] Connect the API as `boss_app`, not as the role that owns `render_jobs` and runs migrations, because the table owner bypasses RLS unless the table has `FORCE ROW LEVEL SECURITY`
+- [ ] Set the user with plain `SET app.user_id = '2'` once per pooled connection, so it isn't repeated in every transaction
+> The policy filters rows, but it doesn't tell the planner which slice of the index to read. The
+> explicit `project_id = $1` does that, and it keeps the query understandable. `OFFSET` still
+> produces and throws away every skipped row, index or not. Table owners (and superusers) skip RLS
+> silently, so the app needs its own non-owner role. A session-level `SET` survives on a pooled
+> connection and leaks one user's identity into the next request (and behind PgBouncer in
+> transaction mode, the next transaction may run on a different server connection entirely). Use
+> `set_config(…, true)` inside each transaction.
+:::
+
 ## Victory
 
-If all seven phases are green, you have written — on real PostgreSQL — the kind of SQL that
+If all eight phases are green, you have written — on real PostgreSQL — the kind of SQL that
 sits behind a production SaaS: billing views, tree analytics, an on-call dashboard, an API
-endpoint, a migration plan and a concurrency-safe worker. That's the Database region cleared.
+endpoint, a migration plan, a concurrency-safe worker and a paged feed that stays fast and
+tenant-safe. That's the Database region cleared.
 
 :::pro title="What would come next in a real team"
 Every query from this fight would get: a **test** (seed a database in CI with Testcontainers
@@ -882,3 +1054,4 @@ A: A partial index matching the ORDER BY: `(priority DESC, created_at, id) WHERE
 - **`jsonb_build_object` + ordered `jsonb_agg` + `coalesce(…, '[]')`**, with correlated subqueries per child table, produce API-ready JSON straight from Postgres without row multiplication.
 - Migrations are graded by **final state** here, but in production every step's **lock and rewrite cost** matters: short transactions, `lock_timeout`, batched backfills, `NOT VALID` + `VALIDATE`, `CREATE INDEX CONCURRENTLY`.
 - A **data-modifying CTE** around a `SKIP LOCKED` claim makes "claim + side effect" one atomic statement.
+- A fast feed is **keyset pagination** on a total order plus the composite index that matches it (equality column first, then the sort columns), with **RLS** as the safety net under the app's own `WHERE`.

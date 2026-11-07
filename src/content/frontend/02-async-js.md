@@ -2,7 +2,7 @@
 id: fe-02
 title: Async JavaScript
 level: beginner
-minutes: 40
+minutes: 65
 xp: 120
 summary: The event loop, promises, async/await, fetch, error handling, Promise combinators and cancelling with AbortController.
 ---

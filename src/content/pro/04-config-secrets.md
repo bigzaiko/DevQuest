@@ -2,7 +2,7 @@
 id: pro-02
 title: Configuration, Secrets & Feature Flags
 level: intermediate
-minutes: 60
+minutes: 65
 xp: 140
 summary: 12-factor config, environments, .env files, ASP.NET Core configuration and Vite env vars, secret stores, rotation and feature flags.
 ---

@@ -2,7 +2,7 @@
 id: ops-07
 title: Image Security and Runtime Hardening
 level: advanced
-minutes: 40
+minutes: 50
 xp: 200
 summary: Non-root users, minimal bases, digest pinning, BuildKit secrets, scanning, SBOM and provenance, read-only containers, healthchecks — and why PID 1 decides whether your app shuts down gracefully.
 ---

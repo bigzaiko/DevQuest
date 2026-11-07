@@ -377,7 +377,8 @@ namespace BranchStory.Worker.Jobs;
 /// <summary>All SQL for the jobs table lives here, one file to review for locking rules.</summary>
 public sealed class JobStore(NpgsqlDataSource db)
 {
-    public const string ClaimSql = """
+    // The claim NOTIFYs too, so the editor sees "running" without waiting for its next poll.
+    public const string ClaimSql = $"""
         WITH next AS (
             SELECT id FROM jobs
             WHERE ((status = 'queued'  AND run_after <= now())
@@ -386,16 +387,23 @@ public sealed class JobStore(NpgsqlDataSource db)
             ORDER BY run_after, id
             LIMIT 1
             FOR UPDATE SKIP LOCKED
+        ), changed AS (
+            UPDATE jobs AS j
+            SET status       = 'running',
+                leased_by    = @worker,
+                leased_until = now() + make_interval(secs => @lease_seconds),
+                attempts     = j.attempts + 1,
+                updated_at   = now()
+            FROM next
+            WHERE j.id = next.id
+            RETURNING j.id, j.kind, j.project_id, j.payload::text AS payload, j.attempts, j.max_attempts,
+                      j.status, j.last_error
+        ), notified AS (
+            {NotifySelect}
         )
-        UPDATE jobs AS j
-        SET status       = 'running',
-            leased_by    = @worker,
-            leased_until = now() + make_interval(secs => @lease_seconds),
-            attempts     = j.attempts + 1,
-            updated_at   = now()
-        FROM next
-        WHERE j.id = next.id
-        RETURNING j.id, j.kind, j.project_id, j.payload::text, j.attempts, j.max_attempts
+        -- A plain SELECT in a CTE only runs when it is referenced; the join makes the NOTIFY happen.
+        SELECT c.id, c.kind, c.project_id, c.payload, c.attempts, c.max_attempts
+        FROM changed c CROSS JOIN (SELECT count(*) FROM notified) AS n
         """;
 
     public async Task<ClaimedJob?> TryClaimAsync(string workerId, TimeSpan lease, CancellationToken ct)
@@ -770,11 +778,12 @@ app.Run();
 
 **10. Configuration**
 
-`worker/BranchStory.Worker/appsettings.json`:
+`worker/BranchStory.Worker/appsettings.json` (Npgsql logs every command at `Information`, which would bury
+the job log under a claim query every second, hence `Npgsql: Warning`):
 
 ```json
 {
-  "Logging": { "LogLevel": { "Default": "Information", "Microsoft.AspNetCore": "Warning" } },
+  "Logging": { "LogLevel": { "Default": "Information", "Microsoft.AspNetCore": "Warning", "Npgsql": "Warning" } },
   "Worker": {
     "Concurrency": 2,
     "Lease": "00:00:30",
@@ -789,11 +798,32 @@ app.Run();
 
 ```json
 {
-  "Urls": "http://localhost:5081",
   "ConnectionStrings": {
     "BranchStory": "Host=localhost;Port=5432;Database=branchstory;Username=branchstory;Password=branchstory;Keepalive=30"
   },
   "Worker": { "Lease": "00:00:09", "BackoffBase": "00:00:01" }
+}
+```
+
+Replace `worker/BranchStory.Worker/Properties/launchSettings.json` to pin `dotnet run` to port 5081,
+next to the API's 5080 (cap-03). Keep the port out of `appsettings.Development.json`: a `Urls`
+setting there would also apply inside the cap-10 containers, which run as `Development` locally
+and must listen on 8081 for their health checks.
+
+```json
+{
+  "$schema": "https://json.schemastore.org/launchsettings.json",
+  "profiles": {
+    "http": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": false,
+      "applicationUrl": "http://localhost:5081",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    }
+  }
 }
 ```
 

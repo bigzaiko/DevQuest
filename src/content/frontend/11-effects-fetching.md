@@ -2,7 +2,7 @@
 id: fe-11
 title: Effects & Data Fetching
 level: intermediate
-minutes: 45
+minutes: 55
 xp: 160
 summary: What useEffect is really for, dependency arrays, cleanup, Strict Mode's double run, race conditions in fetching, loading/error states — and when you don't need an effect at all.
 ---

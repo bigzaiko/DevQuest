@@ -2,7 +2,7 @@
 id: be-20
 title: Performance & Caching
 level: expert
-minutes: 85
+minutes: 90
 xp: 200
 summary: Measure before you optimize (BenchmarkDotNet, dotnet-counters, dotnet-trace), cut allocations, cache with IMemoryCache, HybridCache and output caching, paginate with keysets, stream big responses, and avoid async and connection-pool traps.
 ---

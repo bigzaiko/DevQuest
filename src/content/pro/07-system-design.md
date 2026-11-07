@@ -2,7 +2,7 @@
 id: pro-07
 title: System Design for Full-Stack Developers
 level: advanced
-minutes: 80
+minutes: 85
 xp: 240
 summary: Clients, gateways, stateless APIs, caching, queues, Redis, autoscaling with HPA and KEDA, database scaling, consistency trade-offs and rate limiting — then design a small SaaS end-to-end.
 ---

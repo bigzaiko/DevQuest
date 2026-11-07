@@ -92,17 +92,17 @@ export async function runOnce(code: string, tests: string, react: boolean, env: 
 
 export async function runChallenge(ch: ChallengeInput, userCode: string, env: Env): Promise<Verdict> {
   if (ch.mode === 'code') {
-    const r = await runOnce(ch.setup + '\n' + userCode, ch.tests, ch.react, env)
+    const r = await runOnce((ch.setup ? ch.setup + '\n' : '') + userCode, ch.tests, ch.react, env)
     const error = r.compileError ? `Compile error: ${r.compileError}` : r.fatal
     return { pass: !error && r.results.length > 0 && r.results.every((t) => t.pass), results: r.results, logs: r.logs, error }
   }
   // mode=tests — the learner wrote the tests
-  const base = await runOnce(ch.setup + '\n' + ch.impl, userCode, ch.react, env)
+  const base = await runOnce((ch.setup ? ch.setup + '\n' : '') + ch.impl, userCode, ch.react, env)
   const error = base.compileError ? `Compile error: ${base.compileError}` : base.fatal
   if (error) return { pass: false, results: base.results, logs: base.logs, error }
   const mutants: Verdict['mutants'] = []
   for (const m of ch.mutants) {
-    const r = await runOnce(ch.setup + '\n' + m, userCode, ch.react, env)
+    const r = await runOnce((ch.setup ? ch.setup + '\n' : '') + m, userCode, ch.react, env)
     const failing = r.results.filter((t) => !t.pass).map((t) => t.name)
     mutants.push({ caught: !!(r.compileError || r.fatal) || failing.length > 0, failing })
   }

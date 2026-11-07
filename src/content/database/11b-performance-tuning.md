@@ -1,8 +1,8 @@
 ---
 id: db-17
 title: Performance Tuning
-level: expert
-minutes: 45
+level: advanced
+minutes: 60
 xp: 250
 summary: Keyset pagination, covering indexes, sargable predicates, killing ORM N+1s, planner statistics, CTE materialization and batch writes, the everyday toolkit for a fast SaaS database.
 ---
@@ -13,6 +13,12 @@ an ORM issuing 200 queries for one page, a planner working from bad statistics, 
 single-row `INSERT`s in a loop. This lesson works through each of them in the order you'll meet
 them on the job, and shows the fix at the SQL level, because that's where it has to be fixed
 whatever ORM sits on top.
+
+It builds directly on **Indexes & EXPLAIN**: you should be able to read a plan, tell an Index
+Scan from a Seq Scan, and know why composite column order matters. Everything here is everyday
+work on a product team, not DBA territory. The operational side (zero-downtime migrations,
+VACUUM, pooling, incident diagnosis) comes later in **Production PostgreSQL**, and the code side
+(parameters, transactions and retries from C#/Node) in **Postgres From Your Code**.
 
 ## Measure first
 
@@ -35,7 +41,7 @@ LIMIT 10;
 
 Sort by **total** time, not mean time. A 2 ms query called 5 million times a day costs more than
 a 3-second report run twice. Then take the worst offender, run `EXPLAIN (ANALYZE, BUFFERS)` on a
-production-sized copy (lesson 11), fix it, and measure again.
+production-sized copy (see **Indexes & EXPLAIN**), fix it, and measure again.
 
 :::info title="In the browser sandbox"
 PGlite has no `pg_stat_statements`, and its statistics counters don't move during a run. The
@@ -139,27 +145,28 @@ Users report seeing the same post twice when scrolling. Why, and what's the fix?
 
 ## Covering indexes and index-only scans
 
-An **Index Only Scan** answers a query entirely from the index without visiting the table heap.
+**Indexes & EXPLAIN** introduced Index Only Scans. Here is how to design for them on a hot
+endpoint. An **Index Only Scan** answers a query entirely from the index without visiting the table heap.
 This requires that **every column the query needs is in the index**. You could add all of them as
 key columns, but key columns make the index sort by them, which costs B-tree space and for
 `UNIQUE` indexes changes the meaning. `INCLUDE` adds **payload columns** to the leaf entries only:
 
 ```sql
--- "order history" page: filter + sort on the key, show status and total
-CREATE INDEX orders_customer_history_idx
-  ON orders (customer_id, created_at) INCLUDE (status, total);
+-- "render history" page of a project: filter + sort on the key, show status and kind
+CREATE INDEX render_jobs_project_history_idx
+  ON render_jobs (project_id, created_at) INCLUDE (status, kind);
 
-SELECT created_at, status, total
-FROM orders
-WHERE customer_id = $1
+SELECT created_at, status, kind
+FROM render_jobs
+WHERE project_id = $1
 ORDER BY created_at DESC
 LIMIT 20;
 ```
 
 ```text
 Limit
-  ->  Index Only Scan Backward using orders_customer_history_idx on orders
-        Index Cond: (customer_id = 42)
+  ->  Index Only Scan Backward using render_jobs_project_history_idx on render_jobs
+        Index Cond: (project_id = 42)
 ```
 
 There's no Sort node (the key order provides it) and no heap access. Two caveats:
@@ -169,25 +176,25 @@ There's no Sort node (the key order provides it) and no heap access. Two caveats
   `EXPLAIN ANALYZE` look at `Heap Fetches: N`. A large number means autovacuum isn't keeping up
   on that table.
 - Covering indexes are **bigger**, and including a frequently updated column blocks HOT updates
-  (lesson 11). Include stable, small columns that hot queries really read.
+  (see HOT updates in **Indexes & EXPLAIN**). Include stable, small columns that hot queries really read.
 
 A classic use is `UNIQUE (email) INCLUDE (id, display_name)`: uniqueness on `email` alone, while
 the login lookup gets `id` and `display_name` without touching the table.
 
 :::quiz id=db-17-q5 xp=15
-After adding a covering index, `EXPLAIN (ANALYZE, BUFFERS)` of the order-history query on a busy
-`orders` table shows:
+After adding a covering index, `EXPLAIN (ANALYZE, BUFFERS)` of the render-history query on a busy
+`render_jobs` table shows:
 
 ```text
-Index Only Scan Backward using orders_customer_history_idx on orders
-  Index Cond: (customer_id = 42)
+Index Only Scan Backward using render_jobs_project_history_idx on render_jobs
+  Index Cond: (project_id = 42)
   Heap Fetches: 19
   (actual rows=20 …)
 ```
 
 What does `Heap Fetches: 19` tell you?
 
-- [ ] The index is missing `status` or `total`, so Postgres read 19 rows from the table to get them
+- [ ] The index is missing `status` or `kind`, so Postgres read 19 rows from the table to get them
 - [x] 19 of the 20 rows sat on heap pages not yet marked all-visible, so Postgres had to check the table to see if they're visible; vacuum isn't keeping up with this table
 - [ ] The planner ignored the index for 19 rows and did a sequential scan
 - [ ] 19 rows were deleted and skipped
@@ -195,48 +202,50 @@ What does `Heap Fetches: 19` tell you?
 > Index Scan. `Heap Fetches` counts visibility checks: MVCC visibility isn't stored in the index, so
 > for pages the **visibility map** doesn't mark all-visible, Postgres must visit the heap. On a
 > hot, recently modified table that's normal in small amounts; if it's close to the row count,
-> tune autovacuum for that table (lesson 16) so pages get marked all-visible sooner.
+> tune autovacuum for that table (see VACUUM in **Production PostgreSQL**) so pages get marked all-visible sooner.
 :::
 
 :::sql id=db-17-sql2 db=empty xp=50
-title: Cover the order-history query
-This query runs on every customer's order-history page:
+title: Cover the render-history query
+This query runs every time someone opens a project's render history:
 
 ```sql
-SELECT created_at, status, total FROM orders
-WHERE customer_id = $1 ORDER BY created_at DESC LIMIT 20;
+SELECT created_at, status, kind FROM render_jobs
+WHERE project_id = $1 ORDER BY created_at DESC LIMIT 20;
 ```
 
 Create **one** index so Postgres can answer it with an **Index Only Scan** and **no Sort**. Key on
-what you filter and sort by, and add `status` and `total` with `INCLUDE`.
+what you filter and sort by, and add `status` and `kind` with `INCLUDE`. (The setup builds a
+bigger `render_jobs` table than the studio dataset's, so the planner has something to choose.)
 
 The grader runs `EXPLAIN` on the query (with seq and bitmap scans disabled) and checks for an
 Index Only Scan, no Sort node, and that your index uses `INCLUDE`.
 
-hint: `CREATE INDEX … ON orders (<filter col>, <sort col>) INCLUDE (…);`
+hint: `CREATE INDEX … ON render_jobs (<filter col>, <sort col>) INCLUDE (…);`
 
 ```sql setup
-CREATE TABLE orders (
-  id          bigint PRIMARY KEY,
-  customer_id int           NOT NULL,
-  status      text          NOT NULL,
-  total       numeric(10,2) NOT NULL,
-  created_at  timestamp     NOT NULL
+CREATE TABLE render_jobs (
+  id         bigint PRIMARY KEY,
+  project_id int         NOT NULL,
+  status     text        NOT NULL,
+  kind       text        NOT NULL,
+  created_at timestamptz NOT NULL
 );
-INSERT INTO orders
-SELECT g, g % 3000, (ARRAY['paid','shipped','cancelled'])[1 + g % 3],
-       (g % 500) + 0.99, timestamp '2025-01-01' + g * interval '7 minutes'
+INSERT INTO render_jobs
+SELECT g, g % 3000, (ARRAY['queued','done','failed'])[1 + g % 3],
+       (ARRAY['encode','thumbnail','transition'])[1 + g % 3 / 2 + g % 2],
+       timestamptz '2025-01-01 00:00+00' + g * interval '7 minutes'
 FROM generate_series(1, 30000) g;
-ANALYZE orders;
+ANALYZE render_jobs;
 ```
 
 ```sql starter
-CREATE INDEX orders_customer_idx ON orders (customer_id);
+CREATE INDEX render_jobs_project_idx ON render_jobs (project_id);
 ```
 
 ```sql solution
-CREATE INDEX orders_customer_history_idx
-  ON orders (customer_id, created_at) INCLUDE (status, total);
+CREATE INDEX render_jobs_project_history_idx
+  ON render_jobs (project_id, created_at) INCLUDE (status, kind);
 ```
 
 ```sql check
@@ -249,9 +258,9 @@ SET enable_seqscan = off;
 SET enable_bitmapscan = off;
 SELECT bool_or(p LIKE '%Index Only Scan%')  AS index_only,
        NOT bool_or(p LIKE '%Sort%')        AS no_sort,
-       (SELECT bool_or(indexdef LIKE '%INCLUDE%') FROM pg_indexes WHERE tablename = 'orders') AS uses_include
-FROM plan_of($q$SELECT created_at, status, total FROM orders
-               WHERE customer_id = 42 ORDER BY created_at DESC LIMIT 20$q$) p;
+       (SELECT bool_or(indexdef LIKE '%INCLUDE%') FROM pg_indexes WHERE tablename = 'render_jobs') AS uses_include
+FROM plan_of($q$SELECT created_at, status, kind FROM render_jobs
+               WHERE project_id = 42 ORDER BY created_at DESC LIMIT 20$q$) p;
 ```
 :::
 
@@ -685,6 +694,9 @@ SELECT id, duration_ms FROM clips ORDER BY id;
 
 ### Big deletes and updates: do them in chunks
 
+This is the one place DevQuest teaches chunking in full. **Production PostgreSQL** reuses the same
+loop for backfilling a new column during a zero-downtime migration.
+
 The opposite problem: `DELETE FROM audit_log WHERE created_at < '2024-01-01'` on 80 million rows
 runs as **one huge transaction**. While it runs it holds row locks on everything it touched,
 produces gigabytes of WAL at once (read replicas fall behind), leaves 80 million dead tuples for
@@ -702,10 +714,21 @@ WHERE id IN (
 );
 ```
 
-Each batch is short, locks little and can be throttled (`pg_sleep(0.1)` between batches). The
-same pattern backfills new columns in zero-downtime migrations (lesson 16). For data you
-regularly drop by age, **partitioning** by month turns the whole thing into `DROP TABLE
-audit_log_2023_12`, which is instant.
+Each batch is short, locks little and can be throttled (`pg_sleep(0.1)` between batches). Three
+rules make the loop safe to run in production:
+
+- **Commit between batches.** One transaction around the whole loop gives you back every problem
+  above. (A `PROCEDURE` called with `CALL`, or a `DO` block run outside an explicit transaction, may
+  `COMMIT` inside its loop; a function can't.)
+- **Make it resumable.** The `WHERE` must select only rows that still need work (`created_at <
+  …` for a delete, `new_col IS NULL` for a backfill), so a crash or a deploy just means the next
+  run continues where the last one stopped.
+- **Walk the primary key.** `ORDER BY id LIMIT n` keeps each batch a tidy index range.
+
+The same loop backfills new columns in zero-downtime migrations (see "Backfilling in batches" in
+**Production PostgreSQL**). For data you regularly drop by age, **partitioning** by month turns
+the whole thing into `DROP TABLE audit_log_2023_12`, which is instant (see **Multi-Tenancy,
+Partitioning & Temporal Data**).
 
 :::sql id=db-17-sql7 db=empty xp=50
 title: One batch of a chunked cleanup

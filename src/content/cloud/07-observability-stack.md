@@ -1339,7 +1339,9 @@ and build a RED dashboard with a burn-rate alert. You need Docker (Compose v2), 
 
 :::warn title="Image tags: pin them, and pin the newest"
 The tags below were the newest stable releases when this lesson was last updated (November 2026):
-Collector contrib 0.164.0, Prometheus 3.16.0, Loki 3.7.9, Tempo 2.10.10 and Grafana 13.3.0. Never
+Collector contrib 0.164.0, Prometheus 3.16.0, Loki 3.7.9, Tempo 2.10.10 and Grafana 13.3.0. The
+Collector ships a new minor about every two weeks (0.165.0 landed as this was written), so expect
+your "newest" to be higher than these. Never
 use `latest` in a compose file you share: the stack changes under you on the next `pull`, and
 "it worked yesterday" becomes impossible to debug. Instead, **check each project's releases page
 when you start, pin the newest stable tag, and bump deliberately** (Renovate or Dependabot can

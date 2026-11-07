@@ -2,7 +2,7 @@
 id: db-14
 title: Views, Functions & Triggers
 level: advanced
-minutes: 40
+minutes: 60
 xp: 200
 summary: Name your queries with views, cache them with materialized views, put rules next to the data with SQL and PL/pgSQL functions, and automate updated_at, versions and audit logs with triggers.
 ---
@@ -456,7 +456,7 @@ Timing and level:
 |---|---|---|
 | Can change the row | **yes** (modify `NEW`, return it) | no — the row is already written |
 | Can cancel the row | yes (`RETURN NULL` skips it) | only by raising an error |
-| Typical use | defaults, normalisation, `updated_at`, `version` | audit logs, notifications, syncing other tables |
+| Typical use | defaults, normalization, `updated_at`, `version` | audit logs, notifications, syncing other tables |
 
 `FOR EACH ROW` fires once per row; `FOR EACH STATEMENT` once per statement (with *transition
 tables* `REFERENCING NEW TABLE AS new_rows` you can still see all affected rows — great for bulk
@@ -477,14 +477,14 @@ Spot the bug. After this migration, the app's `INSERT INTO clips …` calls repo
 clips ever show up. Why?
 
 ```sql
-CREATE FUNCTION normalise_clip() RETURNS trigger LANGUAGE plpgsql AS $$
+CREATE FUNCTION normalize_clip() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   NEW.title := trim(NEW.title);
   RETURN NULL;
 END $$;
 
-CREATE TRIGGER clips_normalise BEFORE INSERT ON clips
-FOR EACH ROW EXECUTE FUNCTION normalise_clip();
+CREATE TRIGGER clips_normalize BEFORE INSERT ON clips
+FOR EACH ROW EXECUTE FUNCTION normalize_clip();
 ```
 
 - [ ] `trim()` is not allowed in a trigger function
@@ -578,7 +578,7 @@ UPDATE project_members SET role = 'editor' WHERE project_id = 2 AND user_id = 5;
 COMMIT;
 ```
 
-- `set_config(…, true)` is the parameterised form of `SET LOCAL app.user_id = '42'` (`SET` can't
+- `set_config(…, true)` is the parameterized form of `SET LOCAL app.user_id = '42'` (`SET` can't
   take a bind parameter, so building it as a string invites SQL injection).
 - **Local** matters with connection pooling: a session-level `SET` would leak the user id into the
   next request that reuses the same connection.
@@ -679,7 +679,7 @@ ALTER TABLE clips
 - You can't write to it: `INSERT … (duration_s) VALUES (…)` fails. That's the point — it can never
   disagree with its source.
 
-Typical uses: a `tsvector` for search (the jsonb, Arrays & Full-Text Search lesson), a normalised `lower(email)`, a `total_cents =
+Typical uses: a `tsvector` for search (the jsonb, Arrays & Full-Text Search lesson), a normalized `lower(email)`, a `total_cents =
 quantity * unit_price_cents`, or **promoting a jsonb key** to a real, indexable column:
 `aspect text GENERATED ALWAYS AS (doc ->> 'aspect') STORED`.
 

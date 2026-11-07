@@ -2,7 +2,7 @@
 id: fe-01
 title: Modern JavaScript Refresher
 level: beginner
-minutes: 40
+minutes: 55
 xp: 100
 summary: let/const, arrow functions, destructuring, spread, optional chaining, modules and the array methods every React codebase lives on.
 ---
