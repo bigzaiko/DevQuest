@@ -31,12 +31,14 @@ export const TRACKS: Track[] = [
     tagline: 'Build a production-shaped full-stack app end to end: React editor, ASP.NET API, Postgres, real-time, jobs, CI, K8s.' },
   { id: 'desktop', prefix: 'dsk', title: 'Desktop & Mobile .NET', realm: 'XAML Isles', icon: '🖥️', color: '#5ad1c8',
     tagline: 'XAML, Avalonia UI and .NET MAUI — MVVM, data binding, styling, cross-platform apps.' },
+  { id: 'rust', prefix: 'rs', title: 'Rust & Tauri Desktop', realm: 'Crab Forge', icon: '🦀', color: '#e8743b',
+    tagline: 'Rust from zero (ownership, traits, errors, async) to Tauri 2 desktop & mobile apps: commands, security, every platform, signing and updates.' },
   { id: 'media', prefix: 'med', title: 'Video Playback on the Web', realm: 'The Cinema', icon: '🎞️', color: '#e8c547',
     tagline: 'How browser video works: frames and keyframes, HLS and MSE, frame-accurate jumps, seamless loops and clean audio seams.' },
 ]
 
 /** Recommended route through the regions for a new full-stack job. */
-export const ROUTE = ['basecamp', 'frontend', 'database', 'backend', 'ops', 'cloud', 'pro', 'capstone', 'desktop', 'media']
+export const ROUTE = ['basecamp', 'frontend', 'database', 'backend', 'ops', 'cloud', 'pro', 'capstone', 'desktop', 'rust', 'media']
 
 // Private regions: src/content/private-<name>/ with a _track.json (a Track) — gitignored, local only.
 // Excluded from builds unless the devquest-private plugin (vite.config.ts) enables them.
