@@ -17,14 +17,15 @@ Nothing open. All regions are written, reviewed, fixed and validated.
 | 🧭 Pro Skills | 12 | 95 | 24 | 1 | 12 | ~16h |
 | 🐉 Capstone: BranchStory | 11 | 65 | 13 | 9 | 37 | ~53h |
 | 🖥️ Desktop & Mobile .NET | 12 | 105 | 28 | 0 | 14 | ~22h |
-| **Total** | **150** | **1145** | **265** | **210** | **160** | **~258h** |
+| 🎞️ Video Playback on the Web | 5 | 30 | 10 | 0 | 0 | ~5h |
+| **Total** | **155** | **1175** | **275** | **210** | **160** | **~263h** |
 
 ## Quality
 
 - Every lesson: writer → independent reviewer (fixes in place) → blind quiz verifier → fixer.
 - Every region: coherence critic (progression, gaps, contradictions) → fixer → independent audit.
 - `npm run validate` runs every challenge solution against its tests (starter must fail) and every SQL solution on PostgreSQL 18 (PGlite); CI blocks the deploy on failure.
-- `npm run selftest` runs the production build in Chromium: all 150 lessons render without errors and all 475 code/SQL challenges pass through the real browser runners (CI gate).
+- `npm run selftest` runs the production build in Chromium: all 155 lessons render without errors and all 485 code/SQL challenges pass through the real browser runners (CI gate).
 - Many labs were built and run for real: .NET 10 labs (incl. Testcontainers + postgres:18), the whole Capstone app rebuilt from lessons 01–11 (all tests green, container images built), Redis/Postgres labs against real containers.
 
 ## Security

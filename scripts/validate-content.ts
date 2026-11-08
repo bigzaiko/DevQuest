@@ -41,7 +41,7 @@ const datasets: Record<string, string> = {}
 for (const f of readdirSync(join(contentDir, 'datasets'))) if (f.endsWith('.sql')) datasets[f.replace(/\.sql$/, '')] = readFileSync(join(contentDir, 'datasets', f), 'utf8')
 const dataset = (n: string) => { if (!(n in datasets)) throw new Error(`unknown dataset "${n}"`); return datasets[n] }
 
-const PREFIX: Record<string, string> = { basecamp: 'bc', frontend: 'fe', backend: 'be', database: 'db', ops: 'ops', pro: 'pro', capstone: 'cap', desktop: 'dsk', cloud: 'cl' }
+const PREFIX: Record<string, string> = { basecamp: 'bc', frontend: 'fe', backend: 'be', database: 'db', ops: 'ops', pro: 'pro', capstone: 'cap', desktop: 'dsk', cloud: 'cl', media: 'med' }
 // private regions (gitignored, local only) declare their prefix in _track.json
 for (const d of readdirSync(contentDir)) {
   if (!d.startsWith('private-')) continue
