@@ -27,6 +27,13 @@ Nothing open. All regions are written, reviewed, fixed and validated.
 - `npm run selftest` runs the production build in Chromium: all 150 lessons render without errors and all 475 code/SQL challenges pass through the real browser runners (CI gate).
 - Many labs were built and run for real: .NET 10 labs (incl. Testcontainers + postgres:18), the whole Capstone app rebuilt from lessons 01–11 (all tests green, container images built), Redis/Postgres labs against real containers.
 
+## Security
+
+Hardened (see `SECURITY.md`): sandboxed React iframe (opaque origin), CSP on the production page,
+DOMPurify on lesson HTML, SHA-pinned Actions with least-privilege tokens, Dependabot (weekly, grouped,
+7-day cooldown) with PR checks, secret scanning + push protection, `main` protected against
+force-push/deletion.
+
 ## Known limitations (by design)
 
 - C#, Docker, Kubernetes, Avalonia/MAUI run in your local labs, not in the browser.

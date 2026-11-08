@@ -1,4 +1,5 @@
 import { Marked } from 'marked'
+import DOMPurify from 'dompurify'
 import hljs from 'highlight.js/lib/core'
 import javascript from 'highlight.js/lib/languages/javascript'
 import typescript from 'highlight.js/lib/languages/typescript'
@@ -75,9 +76,15 @@ export function slugify(s: string) {
 const cache = new Map<string, string>()
 export function renderMarkdown(md: string): string {
   let html = cache.get(md)
-  if (!html) { html = marked.parse(md, { async: false }) as string; cache.set(md, html) }
+  if (!html) { html = sanitize(marked.parse(md, { async: false }) as string); cache.set(md, html) }
   return html
 }
 export function renderInline(md: string): string {
-  return marked.parseInline(md, { async: false }) as string
+  return sanitize(marked.parseInline(md, { async: false }) as string)
+}
+
+// Defence in depth: lessons come from this repo, but rendered HTML is still sanitized so a bad
+// lesson (or a malicious pull request) can't inject scripts, event handlers or javascript: links.
+function sanitize(html: string): string {
+  return DOMPurify.sanitize(html, { ADD_ATTR: ['target'] })
 }

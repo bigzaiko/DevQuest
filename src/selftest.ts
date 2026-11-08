@@ -2,13 +2,14 @@
 // every challenge through the REAL production runners: Web Worker, React iframe sandbox, PGlite.
 import { LESSONS, loadLesson } from './content/index.ts'
 import type { ChallengeBlock, SqlBlock } from './engine/parse.ts'
-import { runInWorker, runInFrame, gradeSqlChallenge } from './runners/client.ts'
+import { runInWorker, runInFrame, gradeSqlChallenge, SANDBOX } from './runners/client.ts'
 
 let frame: HTMLIFrameElement | null = null
 function newFrame(): Promise<HTMLIFrameElement> {
   frame?.remove()
   const f = document.createElement('iframe')
   f.src = './sandbox.html'
+  if (SANDBOX) f.setAttribute('sandbox', SANDBOX)
   f.style.cssText = 'position:fixed;left:-9999px;width:800px;height:600px'
   return new Promise((resolve, reject) => {
     const t = setTimeout(() => reject(new Error('sandbox did not become ready')), 15000)

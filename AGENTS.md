@@ -27,7 +27,16 @@ npm run preview
 
 CI (`.github/workflows/deploy.yml`) runs validate → typecheck → build → browser self-test → deploy on push to `main`.
 The React challenge sandbox is built separately with React's development build (`vite.sandbox.config.ts`) because tests use `act()`; every React run gets a fresh sandbox iframe.
-A failing validation blocks the deploy.
+A failing validation blocks the deploy. Pull requests (incl. Dependabot) run the same checks without deploying.
+
+### Security rules (see `SECURITY.md`)
+
+- The React sandbox iframe is `sandbox="allow-scripts allow-forms"` in production (opaque origin):
+  it must not rely on `localStorage`, cookies or `parent` DOM access — talk via `postMessage` only.
+- The production page has a CSP (`vite.config.ts`): no inline scripts, no `eval` on the main thread,
+  no third-party origins. Run learner code in the Worker or the sandbox, never in the page.
+- Rendered Markdown is sanitized with DOMPurify; don't bypass `renderMarkdown`/`renderInline`.
+- Pin new GitHub Actions to a full commit SHA with a `# vX.Y.Z` comment.
 
 ## Layout
 

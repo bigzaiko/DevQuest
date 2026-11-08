@@ -29,7 +29,10 @@ function renderPreview(code: string, name: string) {
     previewRoot = ReactDOMClient.createRoot(host)
     previewRoot.render(React.createElement(ErrorBoundary, null, React.createElement(C)))
   } catch (e) {
-    host.innerHTML = `<pre style="color:#c0392b;white-space:pre-wrap">${String((e as Error).message)}</pre>`
+    const pre = document.createElement('pre')
+    pre.style.cssText = 'color:#c0392b;white-space:pre-wrap'
+    pre.textContent = String((e as Error).message)
+    host.replaceChildren(pre)
   }
 }
 
@@ -43,6 +46,7 @@ class ErrorBoundary extends React.Component<{ children?: React.ReactNode }, { er
 }
 
 window.addEventListener('message', async (e: MessageEvent) => {
+  if (e.source !== parent) return  // only the DevQuest page that embeds this sandbox may drive it
   const d = e.data
   if (!d || d.source !== 'devquest-host') return
   if (d.type === 'run') {

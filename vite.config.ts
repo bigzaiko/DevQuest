@@ -32,12 +32,43 @@ function lessonMeta(): Plugin {
   }
 }
 
+/**
+ * Content-Security-Policy for the production page (a <meta> tag: GitHub Pages can't set headers).
+ * Build only — the dev server injects inline scripts for hot reload.
+ *  - script-src: own files only; 'wasm-unsafe-eval' lets PGlite (PostgreSQL in WASM) compile.
+ *  - learner code runs in the Web Worker / sandbox iframe, which have their own context.
+ */
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self' 'wasm-unsafe-eval'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:",
+  "font-src 'self' data:",
+  "connect-src 'self' data: blob:",
+  "worker-src 'self' blob:",
+  "frame-src 'self'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'none'",
+].join('; ')
+
+function csp(): Plugin {
+  return {
+    name: 'devquest-csp',
+    apply: 'build',
+    transformIndexHtml: () => [{ tag: 'meta', attrs: { 'http-equiv': 'Content-Security-Policy', content: CSP }, injectTo: 'head-prepend' }],
+  }
+}
+
 // base: './' makes the build work under any sub-path, e.g. https://<user>.github.io/DevQuest/
 export default defineConfig({
   base: './',
-  plugins: [react(), lessonMeta()],
+  plugins: [react(), lessonMeta(), csp()],
   optimizeDeps: { exclude: ['@electric-sql/pglite'] },
   worker: { format: 'es' },
+  // the sandbox iframe has an opaque origin (Origin: null) and loads its scripts cross-origin;
+  // GitHub Pages answers with Access-Control-Allow-Origin: *, `vite preview` needs this
+  preview: { cors: { origin: 'null' } },
   build: {
     target: 'es2022',
     chunkSizeWarningLimit: 1500,

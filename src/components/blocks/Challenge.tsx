@@ -2,7 +2,7 @@ import { normalizeQuotes } from '../../engine/quotes.ts'
 import { useEffect, useRef, useState } from 'react'
 import type { ChallengeBlock } from '../../engine/parse.ts'
 import type { Verdict } from '../../runners/execute.ts'
-import { runInWorker, runInFrame } from '../../runners/client.ts'
+import { runInWorker, runInFrame, SANDBOX } from '../../runners/client.ts'
 import { useProgress, solveExercise, missExercise, revealSolution, countRun, getDraft, setDraft, clearDraft } from '../../engine/progress.ts'
 import { Editor as CodeEditor } from '../Editor.tsx'
 import { Markdown } from './Markdown.tsx'
@@ -141,7 +141,7 @@ export function Challenge({ b }: { b: ChallengeBlock }) {
       {b.react && (
         <div className="preview" hidden={!b.preview}>
           <div className="preview-bar">Preview{b.preview ? ` · <${b.preview} />` : ''}</div>
-          <iframe key={frameKey} ref={frame} src="./sandbox.html" title={`Preview for ${b.title}`} style={{ height: frameH }} onLoad={() => { /* ready comes via postMessage */ }} />
+          <iframe key={frameKey} ref={frame} src="./sandbox.html" sandbox={SANDBOX} title={`Preview for ${b.title}`} style={{ height: frameH }} onLoad={() => { /* ready comes via postMessage */ }} />
         </div>
       )}
 

@@ -1,0 +1,27 @@
+# Dependabot version updates: one grouped PR per week per ecosystem.
+# Each PR runs the full CI (validate → typecheck → build → browser self-test) but does not deploy;
+# merge it when it is green. Security updates are opened immediately, outside this schedule.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7   # skip releases younger than a week (time for bad/malicious versions to be pulled)
+    groups:
+      npm-minor-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ['*']
