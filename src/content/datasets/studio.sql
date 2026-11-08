@@ -1,4 +1,4 @@
--- Dataset "studio": an interactive branching-video SaaS (think of a small vidbranch).
+-- Dataset "studio": an interactive branching-video SaaS (a small interactive-video platform).
 -- Users own projects; projects contain clips that form a branching tree; render jobs
 -- are processed by workers; credits are tracked in a ledger. Deterministic data.
 CREATE TABLE users (
