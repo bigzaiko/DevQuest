@@ -60,15 +60,38 @@ function csp(): Plugin {
   }
 }
 
+/**
+ * Private regions (folders src/content/private-NAME, gitignored) are for local study only. They are left out
+ * of every build unless DEVQUEST_PRIVATE=1; `npm run dev` includes them. The globs in
+ * src/content/{index,tracks}.ts exclude them with '!./private-*' patterns, which this removes.
+ */
+function privateRegions(): Plugin {
+  let enabled = false
+  return {
+    name: 'devquest-private',
+    enforce: 'pre',
+    config(_, env) { enabled = env.command === 'serve' || process.env.DEVQUEST_PRIVATE === '1' },
+    transform(code, id) {
+      if (!enabled || !/src\/content\/(index|tracks)\.ts$/.test(id)) return
+      return code.replace(/,\s*'!\.\/private-\*\/[^']*'/g, '')
+    },
+    generateBundle(_, bundle) {
+      if (enabled) return
+      for (const chunk of Object.values(bundle)) {
+        const ids = chunk.type === 'chunk' ? Object.keys(chunk.modules) : []
+        const leak = ids.find((m) => m.includes('/src/content/private-'))
+        if (leak) this.error(`private content would be published: ${leak}`)
+      }
+    },
+  }
+}
+
 // base: './' makes the build work under any sub-path, e.g. https://<user>.github.io/DevQuest/
 export default defineConfig({
   base: './',
-  plugins: [react(), lessonMeta(), csp()],
+  plugins: [privateRegions(), react(), lessonMeta(), csp()],
   optimizeDeps: { exclude: ['@electric-sql/pglite'] },
   worker: { format: 'es' },
-  // the sandbox iframe has an opaque origin (Origin: null) and loads its scripts cross-origin;
-  // GitHub Pages answers with Access-Control-Allow-Origin: *, `vite preview` needs this
-  preview: { cors: { origin: 'null' } },
   build: {
     target: 'es2022',
     chunkSizeWarningLimit: 1500,

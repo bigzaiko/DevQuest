@@ -1,0 +1,93 @@
+{
+  // Ctrl+Shift+B → "dev" (default build task). All tasks: Ctrl+Shift+P → "Tasks: Run Task".
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "dev",
+      "detail": "Vite dev server on http://localhost:5173 (includes private regions)",
+      "type": "npm",
+      "script": "dev",
+      "args": ["--", "--strictPort"],
+      "isBackground": true,
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": {
+        "owner": "vite",
+        "pattern": { "regexp": "^x{0}$" },
+        "background": { "activesBeginsWith": true, "beginsPattern": "VITE v", "endsPattern": "Local:" }
+      }
+    },
+    {
+      "label": "build",
+      "detail": "Production build → dist/ (public content only)",
+      "type": "npm",
+      "script": "build",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "build (with private regions)",
+      "detail": "Production build including src/content/private-* (local only, never deploy this)",
+      "type": "npm",
+      "script": "build",
+      "options": { "env": { "DEVQUEST_PRIVATE": "1" } },
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "preview",
+      "detail": "Build, then serve dist/ on http://localhost:4173",
+      "type": "npm",
+      "script": "preview",
+      "args": ["--", "--strictPort"],
+      "dependsOn": "build",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "vite",
+        "pattern": { "regexp": "^x{0}$" },
+        "background": { "activesBeginsWith": true, "beginsPattern": "^", "endsPattern": "Local:" }
+      }
+    },
+    {
+      "label": "typecheck",
+      "type": "npm",
+      "script": "typecheck",
+      "group": "test",
+      "problemMatcher": "$tsc"
+    },
+    {
+      "label": "validate",
+      "detail": "Parse every lesson and run every challenge solution against its tests",
+      "type": "npm",
+      "script": "validate",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "selftest",
+      "detail": "Build, then run every lesson and challenge in headless Chromium",
+      "type": "shell",
+      "command": "npm run build && npm run selftest",
+      "options": { "env": { "CHROMIUM_PATH": "/usr/bin/chromium" } },
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "check all (like CI)",
+      "detail": "validate → typecheck → build → browser self-test",
+      "dependsOrder": "sequence",
+      "dependsOn": ["validate", "typecheck", "selftest"],
+      "group": { "kind": "test", "isDefault": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "stop servers",
+      "detail": "Stops the dev/preview server tasks",
+      "type": "shell",
+      "command": "echo ${input:terminate}",
+      "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    { "id": "terminate", "type": "command", "command": "workbench.action.tasks.terminate", "args": "terminateAll" }
+  ]
+}

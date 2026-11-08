@@ -29,7 +29,7 @@ Nothing open. All regions are written, reviewed, fixed and validated.
 
 ## Security
 
-Hardened (see `SECURITY.md`): sandboxed React iframe (opaque origin), CSP on the production page,
+Hardened (see `SECURITY.md`): React sandbox accepts messages only from its parent, CSP on the production page,
 DOMPurify on lesson HTML, SHA-pinned Actions with least-privilege tokens, Dependabot (weekly, grouped,
 7-day cooldown) with PR checks, secret scanning + push protection, `main` protected against
 force-push/deletion.

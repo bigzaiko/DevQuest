@@ -11,9 +11,10 @@ not in a public issue.
 
 ## What protects the site
 
-- **Learner code is isolated.** JS/TS challenges run in a Web Worker. React challenges run in an
-  `<iframe sandbox="allow-scripts allow-forms">` with an opaque origin, so they can't read the site's
-  storage or DOM. SQL runs in PGlite (PostgreSQL in WASM), entirely in the browser.
+- **Learner code runs apart from the page.** JS/TS challenges run in a Web Worker, React challenges
+  in a separate iframe (fresh per run, driven only by its parent via `postMessage`), SQL in PGlite
+  (PostgreSQL in WASM). It is only ever the learner's own code. The iframe is *not* given an opaque
+  origin: Chrome then blocks `focus()` inside it, which breaks the focus-management challenges.
 - **Content-Security-Policy** (`vite.config.ts`): scripts only from the site itself, no plugins, no
   form posts, no foreign `<base>`.
 - **Sanitized lesson HTML**: rendered Markdown goes through DOMPurify (`src/engine/markdown.ts`).

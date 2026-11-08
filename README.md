@@ -74,6 +74,16 @@ npm run dev          # → http://localhost:5173
 | `npm run typecheck` | TypeScript check |
 | `npm run build` | production build → `dist/` |
 | `npm run preview` | serve `dist/` like GitHub Pages would |
+| `npm run selftest` | after a build: every lesson and challenge in headless Chromium (`CHROMIUM_PATH=/usr/bin/chromium`) |
+
+**VS Code:** press **F5** ("DevQuest: dev (Chrome)") to start the dev server and open Chrome with the
+debugger attached; stopping the debugger stops the server. The second launch config runs the
+production build via `preview`. **Ctrl+Shift+B** starts the dev server. *Tasks: Run Task* also has
+`build`, `typecheck`, `validate`, `selftest` and `check all (like CI)`.
+
+**Private regions:** folders `src/content/private-<name>/` (with a `_track.json`) are gitignored and
+local only. `npm run dev` shows them; builds leave them out unless `DEVQUEST_PRIVATE=1`, and the build
+fails if private content would end up in `dist/`.
 
 ## Deploy to GitHub Pages
 

@@ -16,8 +16,10 @@ export interface Lesson {
   boss: boolean
 }
 
-const metas = import.meta.glob('./*/*.md', { query: '?meta', import: 'default', eager: true }) as Record<string, Omit<Lesson, 'track' | 'file' | 'index' | 'boss'>>
-const bodies = import.meta.glob('./*/*.md', { query: '?raw', import: 'default' }) as Record<string, () => Promise<string>>
+// Private regions (gitignored src/content/private-*/) are excluded by these '!' patterns. The
+// devquest-private plugin in vite.config.ts removes them only for `npm run dev` / DEVQUEST_PRIVATE=1.
+const metas = import.meta.glob(['./*/*.md', '!./private-*/*.md'], { query: '?meta', import: 'default', eager: true }) as Record<string, Omit<Lesson, 'track' | 'file' | 'index' | 'boss'>>
+const bodies = import.meta.glob(['./*/*.md', '!./private-*/*.md'], { query: '?raw', import: 'default' }) as Record<string, () => Promise<string>>
 const datasetFiles = import.meta.glob('./datasets/*.sql', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
 
 export const LESSONS: Lesson[] = []

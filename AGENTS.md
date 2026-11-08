@@ -31,8 +31,9 @@ A failing validation blocks the deploy. Pull requests (incl. Dependabot) run the
 
 ### Security rules (see `SECURITY.md`)
 
-- The React sandbox iframe is `sandbox="allow-scripts allow-forms"` in production (opaque origin):
-  it must not rely on `localStorage`, cookies or `parent` DOM access — talk via `postMessage` only.
+- The React sandbox iframe talks to the page via `postMessage` only, and accepts messages only from
+  its parent. Don't give it an opaque origin (`sandbox="allow-scripts"`): Chrome then blocks
+  `focus()` inside a cross-origin frame and every focus-management challenge fails.
 - The production page has a CSP (`vite.config.ts`): no inline scripts, no `eval` on the main thread,
   no third-party origins. Run learner code in the Worker or the sandbox, never in the page.
 - Rendered Markdown is sanitized with DOMPurify; don't bypass `renderMarkdown`/`renderInline`.
@@ -73,6 +74,11 @@ vite.config.ts           ← `?meta` plugin that turns a lesson into a small JSO
 2. **A region:** create the folder, add its entry in `src/content/tracks.ts` (`soon: true` shows it
    as "coming soon"), add the prefix to `PREFIX` in `scripts/validate-content.ts`, and add it to `ROUTE` if it belongs
    in the recommended path. Achievements and the skill check for the region appear automatically.
+   **A private region** (local study only, e.g. about a closed-source project): name the folder
+   `src/content/private-<name>/` and put its Track definition in `_track.json` there (plus optional
+   `"order"`). It is gitignored, shown by `npm run dev`, validated by `npm run validate`, and excluded
+   from builds unless `DEVQUEST_PRIVATE=1`; the `devquest-private` plugin in `vite.config.ts` fails the
+   build if private content would be bundled. Never commit or deploy it.
 3. **A SQL dataset:** add `src/content/datasets/<name>.sql`; reference it with `db=<name>`.
 4. Run `npm run validate` until it reports 0 errors.
 

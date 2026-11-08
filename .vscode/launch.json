@@ -1,0 +1,25 @@
+{
+  // F5 → starts the dev server (task "dev") and opens Chrome with the debugger attached:
+  // breakpoints in src/**/*.tsx work. Stopping the debugger also stops the server.
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "DevQuest: dev (Chrome)",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:5173/",
+      "webRoot": "${workspaceFolder}",
+      "preLaunchTask": "dev",
+      "postDebugTask": "stop servers"
+    },
+    {
+      "name": "DevQuest: production build (Chrome)",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:4173/",
+      "webRoot": "${workspaceFolder}",
+      "preLaunchTask": "preview",
+      "postDebugTask": "stop servers"
+    }
+  ]
+}

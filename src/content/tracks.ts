@@ -35,3 +35,8 @@ export const TRACKS: Track[] = [
 
 /** Recommended route through the regions for a new full-stack job. */
 export const ROUTE = ['basecamp', 'frontend', 'database', 'backend', 'ops', 'cloud', 'pro', 'capstone', 'desktop']
+
+// Private regions: src/content/private-<name>/ with a _track.json (a Track) — gitignored, local only.
+// Excluded from builds unless the devquest-private plugin (vite.config.ts) enables them.
+const privateTracks = import.meta.glob(['./*/_track.json', '!./private-*/_track.json'], { import: 'default', eager: true }) as Record<string, Track & { order?: number }>
+for (const t of Object.values(privateTracks).sort((a, b) => (a.order ?? 0) - (b.order ?? 0))) TRACKS.push(t)

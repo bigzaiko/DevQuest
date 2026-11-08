@@ -42,6 +42,11 @@ for (const f of readdirSync(join(contentDir, 'datasets'))) if (f.endsWith('.sql'
 const dataset = (n: string) => { if (!(n in datasets)) throw new Error(`unknown dataset "${n}"`); return datasets[n] }
 
 const PREFIX: Record<string, string> = { basecamp: 'bc', frontend: 'fe', backend: 'be', database: 'db', ops: 'ops', pro: 'pro', capstone: 'cap', desktop: 'dsk', cloud: 'cl' }
+// private regions (gitignored, local only) declare their prefix in _track.json
+for (const d of readdirSync(contentDir)) {
+  if (!d.startsWith('private-')) continue
+  try { PREFIX[d] = JSON.parse(readFileSync(join(contentDir, d, '_track.json'), 'utf8')).prefix } catch { console.log(`  ✖ ${d}: missing or invalid _track.json`); process.exitCode = 1 }
+}
 
 function walk(dir: string): string[] {
   return readdirSync(dir).flatMap((f) => {

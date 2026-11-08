@@ -19,9 +19,14 @@ coverage/
 # Editors / OS
 .vscode/*
 !.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
 .idea/
 .DS_Store
 Thumbs.db
 
 # Local Claude/agent scratch
 .claude/settings.local.json
+
+# Private regions: local study only, never committed or published (see AGENTS.md)
+src/content/private-*/

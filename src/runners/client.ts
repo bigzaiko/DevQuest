@@ -24,13 +24,6 @@ export function runInWorker(c: ChallengeBlock, code: string, timeoutMs = 6000): 
   })
 }
 
-/**
- * The React sandbox runs learner code, so it gets an opaque origin: no access to this site's
- * localStorage (progress), cookies or DOM — it can only talk back via postMessage.
- * (Dev server only: left off, because Vite's dev server refuses cross-origin module requests.)
- */
-export const SANDBOX: string | undefined = import.meta.env.PROD ? 'allow-scripts allow-forms' : undefined
-
 let msgId = 0
 /** Runs a React challenge inside the given sandbox iframe. */
 export function runInFrame(frame: HTMLIFrameElement, c: ChallengeBlock, code: string, timeoutMs = 8000): Promise<Verdict> {
